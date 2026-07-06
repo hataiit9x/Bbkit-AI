@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+
+claude_root="${BB_CLAUDE_ROOT:-$HOME/.claude}"
+codex_root="${BB_CODEX_ROOT:-$HOME/.codex}"
+agents_root="${BB_AGENTS_ROOT:-$HOME/.agents}"
+factory_root="${BB_FACTORY_ROOT:-$HOME/.factory}"
+factory_skill_roots=(
+  "$BB_REF/strix-skills"
+  "$BB_REF/web3-bug-bounty-hunting-ai-skills"
+)
+
+copy_named_dirs() {
+  local src_root="$1"
+  local dest_root="$2"
+  local label="$3"
+  [[ -d "$src_root" ]] || return 0
+  mkdir -p "$dest_root"
+  for item in "$src_root"/*; do
+    [[ -d "$item" ]] || continue
+    [[ -f "$item/SKILL.md" || -n "$(find "$item" -maxdepth 1 -type f -name '*.md' -print -quit 2>/dev/null)" ]] || continue
+    local name
+    name="$(basename "$item")"
+    rm -rf "$dest_root/$name"
+    mkdir -p "$dest_root/$name"
+    cp -R "$item"/. "$dest_root/$name/"
+    log "$label: $name"
+  done
+}
+
+copy_named_files() {
+  local src_glob="$1"
+  local dest_root="$2"
+  local label="$3"
+  mkdir -p "$dest_root"
+  for item in $src_glob; do
+    [[ -f "$item" ]] || continue
+    local name
+    name="$(basename "$item")"
+    cp "$item" "$dest_root/$name"
+    log "$label: $name"
+  done
+}
+
+[[ -d "$BB_AI_ROOT" ]] || {
+  err "AI bundle not found at $BB_AI_ROOT"
+  exit 1
+}
+
+echo "BBKit AI Sync"
+echo "============="
+
+copy_named_dirs "$BB_AI_ROOT/skills" "$claude_root/skills" "Claude skill"
+copy_named_files "$BB_AI_ROOT/commands/*.md" "$claude_root/commands" "Claude command"
+copy_named_files "$BB_AI_ROOT/agents/*.md" "$claude_root/agents" "Claude agent"
+copy_named_dirs "$BB_AI_ROOT/skills" "$codex_root/skills" "Codex skill"
+copy_named_files "$BB_AI_ROOT/commands/*.md" "$codex_root/commands" "Codex command"
+copy_named_dirs "$BB_AI_ROOT/skills" "$agents_root/skills" "Shared agent skill"
+
+mkdir -p "$claude_root/bbkit"
+for extra in rules hooks mcp memory web3; do
+  if [[ -d "$BB_AI_ROOT/$extra" ]]; then
+    rm -rf "$claude_root/bbkit/$extra"
+    mkdir -p "$claude_root/bbkit/$extra"
+    cp -R "$BB_AI_ROOT/$extra"/. "$claude_root/bbkit/$extra/"
+    log "Claude asset: bbkit/$extra"
+  fi
+done
+for extra_file in AGENTS.md CLAUDE.md OPENCODE.md SKILL.md README.md config.example.json; do
+  if [[ -f "$BB_AI_ROOT/$extra_file" ]]; then
+    cp "$BB_AI_ROOT/$extra_file" "$claude_root/bbkit/$extra_file"
+    log "Claude asset: bbkit/$extra_file"
+  fi
+done
+
+for skill_root in "${factory_skill_roots[@]}"; do
+  copy_named_dirs "$skill_root" "$factory_root/skills" "Factory skill"
+done
+
+echo ""
+echo "Claude Code:   $claude_root"
+echo "Codex:         $codex_root"
+echo ".agents:       $agents_root"
+echo "Factory Droid: $factory_root"
+echo "AI bundle:     $BB_AI_ROOT"

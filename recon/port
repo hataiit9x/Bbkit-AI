@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+require_target "${1:-}"
+target="$1"
+base="$BB_OUTPUT/$target"
+subs="$base/subs/resolved.txt"
+out="$base/ports"
+mkdir -p "$out"
+
+[[ -f "$subs" ]] || "$BB_ROOT/recon/subs" "$target"
+
+if need_cmd naabu; then
+  naabu -list "$subs" -top-ports 1000 -rate 1000 -o "$out/naabu.txt" || true
+fi
+
+if need_cmd nmap && [[ -s "$out/naabu.txt" ]]; then
+  awk -F: '{print $1}' "$out/naabu.txt" | sort -u > "$out/hosts.txt"
+  nmap -iL "$out/hosts.txt" -T4 -Pn -oN "$out/nmap.txt" || true
+fi
+
+log "Saved: $out"

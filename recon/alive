@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+require_target "${1:-}"
+target="$1"
+base="$BB_OUTPUT/$target"
+subs="$base/subs/resolved.txt"
+out="$base/alive"
+mkdir -p "$out"
+
+[[ -f "$subs" ]] || "$BB_ROOT/recon/subs" "$target"
+
+if need_cmd httpx; then
+  httpx -l "$subs" -silent -status-code -content-length -title -tech-detect -follow-redirects -o "$out/httpx.txt" || true
+  awk '{print $1}' "$out/httpx.txt" | sort -u > "$out/alive.txt" || true
+else
+  cp "$subs" "$out/alive.txt"
+fi
+
+log "Saved: $out/alive.txt"

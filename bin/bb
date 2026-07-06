@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export BB_ROOT="${BB_ROOT:-$HOME/BugBounty}"
+source "$BB_ROOT/lib/common.sh"
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+  help|-h|--help)
+    cat <<'EOF'
+BBKit commands:
+
+  bb help
+  bb doctor
+  bb update
+  bb version
+  bb bounty <program-url>
+  bb browser <url>
+  bb ai help
+  bb ai sync
+  bb ai doctor
+  bb ai run <tool> [args...]
+  bb hunt [args...]
+  bb validate [args...]
+  bb intel [args...]
+  bb scan-cves [args...]
+  bb arsenal [tool]
+
+Recon:
+  bb subs <domain>
+  bb alive <domain>
+  bb urls <domain>
+  bb js <domain>
+  bb port <domain>
+  bb nuclei <domain>
+  bb report <domain>
+  bb full <domain>
+
+Paths:
+  $BB_ROOT/output/<domain>/
+  $BB_ROOT/ai/bug-bounty/
+EOF
+    ;;
+  bounty)
+    "$BB_ROOT/recon/bounty" "$@"
+    ;;
+  browser)
+    "$BB_ROOT/recon/browser" "$@"
+    ;;
+  doctor)
+    "$BB_ROOT/recon/doctor"
+    ;;
+  update)
+    "$BB_ROOT/recon/update"
+    ;;
+  version)
+    "$BB_ROOT/recon/version"
+    ;;
+  ai)
+    subcmd="${1:-help}"
+    shift || true
+    case "$subcmd" in
+      help|-h|--help)
+        cat <<'EOF'
+BBKit AI commands:
+
+  bb ai sync                 Sync Claude Code + .agents + Factory Droid assets
+  bb ai doctor               Check AI bundle and harness paths
+  bb ai run <tool> [args...] Run a bundled Claude Bug Bounty tool from BBKit
+EOF
+        ;;
+      sync)
+        "$BB_ROOT/recon/ai-sync" "$@"
+        ;;
+      doctor)
+        "$BB_ROOT/recon/ai-doctor" "$@"
+        ;;
+      run)
+        "$BB_ROOT/recon/ai-run" "$@"
+        ;;
+      *)
+        err "Unknown AI command: $subcmd"
+        echo "Run: bb ai help"
+        exit 1
+        ;;
+    esac
+    ;;
+  hunt|validate|intel|scan-cves|arsenal)
+    "$BB_ROOT/recon/$cmd" "$@"
+    ;;
+  subs|alive|urls|js|port|nuclei|report|full)
+    "$BB_ROOT/recon/$cmd" "$@"
+    ;;
+  *)
+    err "Unknown command: $cmd"
+    echo "Run: bb help"
+    exit 1
+    ;;
+esac

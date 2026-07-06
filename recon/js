@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+require_target "${1:-}"
+target="$1"
+base="$BB_OUTPUT/$target"
+urls="$base/urls/js.txt"
+out="$base/js"
+mkdir -p "$out"
+
+[[ -f "$urls" ]] || "$BB_ROOT/recon/urls" "$target"
+cp "$urls" "$out/js_urls.txt" 2>/dev/null || true
+
+if need_cmd subjs; then
+  cat "$base/alive/alive.txt" | subjs | sort -u > "$out/subjs.txt" || true
+fi
+
+cat "$out"/*.txt 2>/dev/null | sort -u > "$out/all_js.txt" || true
+
+log "Saved: $out/all_js.txt"

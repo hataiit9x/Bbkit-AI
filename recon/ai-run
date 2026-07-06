@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+
+tool="${1:-}"
+[[ -n "$tool" ]] || {
+  err "tool name required"
+  echo "Usage: bb ai run <tool> [args...]"
+  exit 1
+}
+shift || true
+
+if [[ -f "$BB_AI_ROOT/tools/$tool" ]]; then
+  script="$BB_AI_ROOT/tools/$tool"
+elif [[ -f "$BB_AI_ROOT/$tool" ]]; then
+  script="$BB_AI_ROOT/$tool"
+elif [[ -f "$BB_REF/$tool" ]]; then
+  script="$BB_REF/$tool"
+else
+  err "tool not found: $tool"
+  echo "Look under: $BB_AI_ROOT/tools or $BB_REF"
+  exit 1
+fi
+
+cd "$BB_AI_ROOT"
+case "$script" in
+  *.py) exec python3 "$script" "$@" ;;
+  *.sh) exec bash "$script" "$@" ;;
+  *) chmod +x "$script" 2>/dev/null || true; exec "$script" "$@" ;;
+esac

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+
+export PATH="$PATH:/usr/local/go/bin:$HOME/go/bin:$BB_BIN:$HOME/.local/bin:$HOME/.cargo/bin"
+
+for p in "$BB_ROOT"/plugins/*.sh; do
+  source "$p"
+done
+
+for p in "$BB_ROOT"/plugins/*.sh; do
+  name="$(basename "$p" .sh)"
+  fn="install_${name//-/_}"
+  if declare -F "$fn" >/dev/null 2>&1; then
+    "$fn" || true
+  fi
+done
+
+if [[ -f "$BB_AI_ROOT/requirements.txt" ]]; then
+  python3 -m pip install --user -U -r "$BB_AI_ROOT/requirements.txt" certifi ollama || true
+fi
+
+if need_cmd nuclei; then
+  nuclei -update-templates || true
+fi
+
+echo "[+] Update completed"

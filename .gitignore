@@ -1,0 +1,7 @@
+output/
+logs/
+*.log
+*.tmp
+.DS_Store
+.env
+config/local.yaml

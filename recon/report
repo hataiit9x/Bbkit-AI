@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+require_target "${1:-}"
+target="$1"
+base="$BB_OUTPUT/$target"
+report="$base/report.html"
+mkdir -p "$base"
+
+count_file() { [[ -f "$1" ]] && wc -l < "$1" || echo 0; }
+
+subs=$(count_file "$base/subs/resolved.txt")
+alive=$(count_file "$base/alive/alive.txt")
+urls=$(count_file "$base/urls/all_urls.txt")
+js=$(count_file "$base/js/all_js.txt")
+params=$(count_file "$base/urls/params.txt")
+nuclei=$(count_file "$base/nuclei/nuclei.txt")
+
+cat > "$report" <<EOF
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>BBKit Report - $target</title>
+<style>
+body{font-family:Arial,sans-serif;margin:40px;background:#f7f7f7}
+.card{background:white;padding:20px;margin:12px 0;border-radius:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.num{font-size:32px;font-weight:bold}
+code{background:#eee;padding:2px 6px;border-radius:4px}
+</style>
+</head>
+<body>
+<h1>BBKit Report: $target</h1>
+<div class="grid">
+<div class="card"><div>Subdomains</div><div class="num">$subs</div></div>
+<div class="card"><div>Alive</div><div class="num">$alive</div></div>
+<div class="card"><div>URLs</div><div class="num">$urls</div></div>
+<div class="card"><div>JS</div><div class="num">$js</div></div>
+<div class="card"><div>Params</div><div class="num">$params</div></div>
+<div class="card"><div>Nuclei</div><div class="num">$nuclei</div></div>
+</div>
+<div class="card">
+<h2>Output Path</h2>
+<code>$base</code>
+</div>
+</body>
+</html>
+EOF
+
+log "Report: $report"

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+
+[[ -f "$BB_AI_ROOT/tools/external_arsenal.sh" ]] || {
+  err "arsenal tool not found at $BB_AI_ROOT/tools/external_arsenal.sh"
+  exit 1
+}
+
+cd "$BB_AI_ROOT"
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  exec bash "$BB_AI_ROOT/tools/external_arsenal.sh" --help
+fi
+
+if [[ $# -gt 0 ]]; then
+  exec bash "$BB_AI_ROOT/tools/external_arsenal.sh" --install-hint "$1"
+fi
+
+exec bash "$BB_AI_ROOT/tools/external_arsenal.sh"

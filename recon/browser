@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+
+exec python3 "$BB_ROOT/lib/browser_adapter.py" "$@"

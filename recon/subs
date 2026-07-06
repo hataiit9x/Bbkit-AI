@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+require_target "${1:-}"
+target="$1"
+out="$BB_OUTPUT/$target/subs"
+mkdir -p "$out"
+
+log "Subdomain recon: $target"
+
+if need_cmd subfinder; then subfinder -d "$target" -all -recursive -silent -o "$out/subfinder.txt" || true; fi
+if need_cmd assetfinder; then echo "$target" | assetfinder -subs-only | tee "$out/assetfinder.txt" >/dev/null || true; fi
+if need_cmd chaos; then chaos -d "$target" -silent -o "$out/chaos.txt" || true; fi
+if need_cmd amass; then amass enum -passive -d "$target" -o "$out/amass.txt" || true; fi
+
+cat "$out"/*.txt 2>/dev/null | sed 's/^\*\.//' | sort -u > "$out/all.txt" || true
+
+if need_cmd dnsx; then
+  dnsx -l "$out/all.txt" -silent -o "$out/resolved.txt" || true
+else
+  cp "$out/all.txt" "$out/resolved.txt"
+fi
+
+log "Saved: $out/resolved.txt"

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+require_target "${1:-}"
+target="$1"
+
+"$BB_ROOT/recon/subs" "$target"
+"$BB_ROOT/recon/alive" "$target"
+"$BB_ROOT/recon/urls" "$target"
+"$BB_ROOT/recon/js" "$target"
+"$BB_ROOT/recon/port" "$target"
+"$BB_ROOT/recon/nuclei" "$target"
+"$BB_ROOT/recon/report" "$target"
+
+log "Full recon completed: $BB_OUTPUT/$target"

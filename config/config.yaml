@@ -1,0 +1,13 @@
+threads: 100
+rate_limit: 50
+output: ~/BugBounty/output
+
+nuclei:
+  severity:
+    - critical
+    - high
+    - medium
+    - low
+
+resolvers:
+  file: ~/BugBounty/wordlists/resolvers/resolvers.txt

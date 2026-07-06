@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+export PATH="$PATH:/usr/local/go/bin:$HOME/go/bin:$BB_BIN:$HOME/.local/bin:$HOME/.cargo/bin"
+
+echo "BBKit Doctor"
+echo "============"
+
+for t in go python3 pip3 cargo nmap jq curl wget git; do
+  if need_cmd "$t"; then echo "✓ $t"; else echo "✗ $t"; fi
+done
+
+tools=(subfinder assetfinder amass chaos dnsx httpx katana nuclei naabu ffuf gau waybackurls anew qsreplace gf hakrawler gospider subjs arjun waymore paramspider dirsearch sqlmap trufflehog uro feroxbuster gobuster)
+echo ""
+echo "Tools"
+echo "-----"
+for t in "${tools[@]}"; do
+  if need_cmd "$t"; then echo "✓ $t"; else echo "✗ $t"; fi
+done
+
+echo ""
+echo "Wordlists"
+echo "---------"
+[[ -f "$BB_WORDLISTS/dns/best-dns-wordlist.txt" ]] && echo "✓ best-dns-wordlist" || echo "✗ best-dns-wordlist"
+[[ -f "$BB_WORDLISTS/resolvers/resolvers.txt" ]] && echo "✓ resolvers" || echo "✗ resolvers"
+
+echo ""
+echo "AI"
+echo "--"
+[[ -d "$BB_AI_ROOT" ]] && echo "✓ ai-bundle" || echo "✗ ai-bundle"
+[[ -f "$HOME/.claude/skills/bug-bounty/SKILL.md" ]] && echo "✓ claude-bug-bounty-skill" || echo "✗ claude-bug-bounty-skill"
+[[ -f "$HOME/.codex/skills/bug-bounty/SKILL.md" ]] && echo "✓ codex-bug-bounty-skill" || echo "✗ codex-bug-bounty-skill"
+[[ -f "$HOME/.agents/skills/bug-bounty/SKILL.md" ]] && echo "✓ shared-agent-bug-bounty-skill" || echo "✗ shared-agent-bug-bounty-skill"
+[[ -f "$HOME/.factory/skills/xss/SKILL.md" ]] && echo "✓ factory-xss-skill" || echo "✗ factory-xss-skill"
+python3 -c "import cloakbrowser" >/dev/null 2>&1 && echo "✓ cloakbrowser-python" || echo "✗ cloakbrowser-python"

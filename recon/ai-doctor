@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+
+claude_root="${BB_CLAUDE_ROOT:-$HOME/.claude}"
+codex_root="${BB_CODEX_ROOT:-$HOME/.codex}"
+agents_root="${BB_AGENTS_ROOT:-$HOME/.agents}"
+factory_root="${BB_FACTORY_ROOT:-$HOME/.factory}"
+
+check_path() {
+  local label="$1"
+  local path="$2"
+  if [[ -e "$path" ]]; then
+    echo "✓ $label: $path"
+  else
+    echo "✗ $label: $path"
+  fi
+}
+
+echo "BBKit AI Doctor"
+echo "==============="
+
+check_path "AI bundle" "$BB_AI_ROOT"
+check_path "Claude skill bug-bounty" "$claude_root/skills/bug-bounty/SKILL.md"
+check_path "Claude command recon" "$claude_root/commands/recon.md"
+check_path "Claude agent autopilot" "$claude_root/agents/autopilot.md"
+check_path "Claude extra assets" "$claude_root/bbkit"
+check_path "Codex skill bug-bounty" "$codex_root/skills/bug-bounty/SKILL.md"
+check_path "Codex command recon" "$codex_root/commands/recon.md"
+check_path ".agents skill bug-bounty" "$agents_root/skills/bug-bounty/SKILL.md"
+check_path "Factory skills root" "$factory_root/skills"
+check_path "Factory xss skill" "$factory_root/skills/xss/SKILL.md"
+check_path "Factory web3 start" "$factory_root/skills/web3-start-here/SKILL.md"
+
+echo ""
+echo "Core runtime"
+echo "------------"
+for t in python3 bash jq go git subfinder httpx katana nuclei naabu ffuf gau; do
+  if need_cmd "$t"; then echo "✓ $t"; else echo "✗ $t"; fi
+done

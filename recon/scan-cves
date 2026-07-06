@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+
+[[ -f "$BB_AI_ROOT/tools/cve_scan.sh" ]] || {
+  err "cve scan tool not found at $BB_AI_ROOT/tools/cve_scan.sh"
+  exit 1
+}
+
+cd "$BB_AI_ROOT"
+exec bash "$BB_AI_ROOT/tools/cve_scan.sh" "$@"
