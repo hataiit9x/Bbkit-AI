@@ -279,15 +279,16 @@ def extract_page_data(html: str, base_url: str) -> dict[str, Any]:
     }
 
 
-def classify_program(page_data: dict[str, Any]) -> list[str]:
+def classify_program(page_data: dict[str, Any], program_url: str = "") -> list[str]:
     haystack = " ".join(
         [
             page_data.get("title", ""),
             page_data.get("text", ""),
             " ".join(page_data.get("links", [])),
+            program_url,
         ]
     ).lower()
-    labels = []
+    labels: list[str] = []
     if any(
         keyword in haystack
         for keyword in (
@@ -303,6 +304,14 @@ def classify_program(page_data: dict[str, Any]) -> list[str]:
             "testnet",
             "contract address",
             "immunefi",
+            "cantina",
+            "code4rena",
+            "sherlock",
+            "foundry",
+            "hardhat",
+            "anchor",
+            "solana",
+            "move language",
         )
     ) or page_data.get("contract_addresses"):
         labels.append("web3")
@@ -315,12 +324,50 @@ def classify_program(page_data: dict[str, Any]) -> list[str]:
             "postman",
             "graphql",
             "rest api",
+            "backend",
+            "microservice",
         )
     ):
         labels.append("api")
+    if any(
+        keyword in haystack
+        for keyword in (
+            "android",
+            "ios",
+            "mobile app",
+            "apk",
+            "ipa",
+            "react native",
+            "flutter",
+            "play store",
+            "app store",
+        )
+    ):
+        labels.append("mobile")
+    if any(
+        keyword in haystack
+        for keyword in (
+            "web app",
+            "website",
+            "frontend",
+            "browser",
+            "cookie",
+            "session",
+            "oauth",
+            "sso",
+        )
+    ):
+        if "web" not in labels:
+            labels.append("web")
     if not labels:
         labels.append("web")
-    return labels
+    # Primary surface first for checklist convenience
+    priority = ["web3", "api", "web", "mobile"]
+    ordered = [label for label in priority if label in labels]
+    for label in labels:
+        if label not in ordered:
+            ordered.append(label)
+    return ordered
 
 
 def classify_link(url: str) -> str:
@@ -474,11 +521,13 @@ def read_optional_file(path: Path) -> str:
 
 
 def build_skill_plan(labels: list[str], page_data: dict[str, Any]) -> list[str]:
-    skills = ["bug-bounty", "bb-methodology", "report-writing", "triage-validation"]
+    skills = ["bbkit", "bug-bounty", "bb-methodology", "report-writing", "triage-validation"]
     if "web" in labels or "api" in labels:
         skills.extend(["web2-recon", "web2-vuln-classes", "security-arsenal"])
     if "web3" in labels:
-        skills.extend(["web3-audit", "security-arsenal"])
+        skills.extend(["web3-audit", "web3-bug-classes", "web3-grep-arsenal", "web3-poc-foundry", "security-arsenal"])
+    if "mobile" in labels:
+        skills.extend(["web2-vuln-classes", "security-arsenal"])
     haystack = " ".join(page_data.get("links", []) + page_data.get("urls_in_text", [])).lower()
     if "graphql" in haystack:
         skills.append("graphql-audit")
@@ -490,23 +539,344 @@ def build_skill_plan(labels: list[str], page_data: dict[str, Any]) -> list[str]:
 
 
 def build_command_plan(program_url: str, targets: list[ScanTarget], labels: list[str]) -> list[str]:
-    commands = [f"bb bounty {program_url}"]
+    commands = [f"bb engage {program_url}"]
+    if "web3" in labels and not any(label in {"web", "api"} for label in labels):
+        commands.append("# Surface chính = Web3: ưu tiên đọc repo/contract, Foundry/Slither; recon web chỉ nếu có domain in-scope")
     for target in targets[:4]:
+        if target.kind == "docs":
+            continue
+        if "web3" in labels and target.kind in {"explorer"}:
+            continue
         if target.allow_subdomains:
             commands.append(f"bb subs {target.host}")
         commands.append(f"bb alive {target.host}")
         commands.append(f"bb urls {target.host}")
-        if target.kind != "docs":
+        if "web" in labels or "api" in labels:
             commands.append(f"bb nuclei {target.host}")
     if "web3" in labels:
-        commands.append("Đọc `program-intake.md`, repo, docs, contract addresses trước khi chạy các kiểm tra Web3 chuyên sâu.")
+        commands.append("Đọc checklist.md + repo/contracts; chạy forge/slither khi có source in-scope")
     if "api" in labels:
-        commands.append("Ưu tiên rà soát authz/BOLA/GraphQL trên các asset API trong `report.md`.")
+        commands.append("Ưu tiên BOLA/IDOR/authz trên API trong-scope (Burp/manual sau recon)")
+    if "mobile" in labels:
+        commands.append("Map mobile API surface; test authz trên backend API, không reverse APK ngoài scope")
     ordered = []
     for command in commands:
         if command not in ordered:
             ordered.append(command)
     return ordered
+
+
+def detect_platform(program_url: str, page_data: dict[str, Any]) -> str:
+    host = (urlparse(program_url).hostname or "").lower()
+    text = (page_data.get("title", "") + " " + page_data.get("text", "")).lower()
+    if "cantina.xyz" in host or "cantina" in text:
+        return "Cantina"
+    if "immunefi.com" in host:
+        return "Immunefi"
+    if "hackerone.com" in host:
+        return "HackerOne"
+    if "bugcrowd.com" in host:
+        return "Bugcrowd"
+    if "code4rena.com" in host or "code4rena" in text:
+        return "Code4rena"
+    if "sherlock.xyz" in host:
+        return "Sherlock"
+    if "intigriti.com" in host:
+        return "Intigriti"
+    return "unknown"
+
+
+def write_engagement_bundle(
+    bb_root: str,
+    slug: str,
+    program_url: str,
+    final_url: str,
+    platform: str,
+    labels: list[str],
+    page_data: dict[str, Any],
+    targets: list[ScanTarget],
+    obstacles: list[str],
+    skills: list[str],
+    commands: list[str],
+    workspace_dir: Path,
+) -> Path:
+    """Create engagements/<slug>/ with scope, checklist, findings workflow, activate scope."""
+    eng_root = Path(bb_root) / "engagements" / slug
+    findings_dir = eng_root / "findings"
+    poc_dir = eng_root / "poc"
+    eng_root.mkdir(parents=True, exist_ok=True)
+    findings_dir.mkdir(exist_ok=True)
+    poc_dir.mkdir(exist_ok=True)
+    (eng_root / ".private").mkdir(exist_ok=True)
+
+    domains = sorted({t.host for t in targets if t.kind in {"asset", "api"}})
+    contracts = page_data.get("contract_addresses", [])[:20]
+    repos = page_data.get("repo_refs", [])[:20]
+    scope_lines = collect_lines(
+        page_data.get("text_lines", []),
+        ("scope", "in scope", "out of scope", "asset", "rule", "reward", "bounty", "severity", "payout"),
+        limit=30,
+    )
+
+    domain_table = "\n".join(f"| {d} | domain/host | from program page |" for d in domains) or "| (none parsed) | | fill manually |"
+    contract_table = "\n".join(f"| | `{c}` | | from program page |" for c in contracts) or "| | | | |"
+    repo_list = "\n".join(f"- https://github.com/{r}" for r in repos) or "- (none parsed)"
+
+    scope_md = f"""# Scope — {slug}
+
+## Program
+
+| Field | Value |
+|-------|--------|
+| Program name | {page_data.get("title") or slug} |
+| Platform | {platform} |
+| Policy / program URL | {program_url} |
+| Final URL | {final_url} |
+| Workspace intake | `{workspace_dir}` |
+
+## Authorization
+
+- [x] Testing only in-scope assets under this program.
+- [ ] Credentials stay in `.private/` (never commit).
+
+## Surface classification (auto)
+
+| Label | Present |
+|-------|---------|
+| web3 | {"yes" if "web3" in labels else "no"} |
+| web | {"yes" if "web" in labels else "no"} |
+| api | {"yes" if "api" in labels else "no"} |
+| mobile | {"yes" if "mobile" in labels else "no"} |
+
+**Primary:** `{labels[0] if labels else "web"}`
+
+## In-scope assets (auto-extracted — verify!)
+
+### Web / hosts
+
+| Asset | Type | Notes |
+|-------|------|--------|
+{domain_table}
+
+### Smart contracts
+
+| Name | Address | Chain | Notes |
+|------|---------|-------|--------|
+{contract_table}
+
+### Repos / source
+
+{repo_list}
+
+## Scope / rules snippets (from page)
+
+{chr(10).join(f"- {line}" for line in scope_lines) if scope_lines else "- (parse weak — open program URL and fill manually)"}
+
+## Out of scope
+
+| Asset / behavior | Reason |
+|------------------|--------|
+| (fill from program page) | |
+
+## Tooling path (CLI first — save tokens)
+
+1. Activate: `bb scope use {slug}`
+2. Follow `checklist.md` by surface type
+3. Run only commands in `pipeline.md` for this surface
+4. Record findings under `findings/` with PoC
+5. Run triager review: `triager-review.md`
+"""
+    (eng_root / "scope.md").write_text(scope_md, encoding="utf-8")
+
+    checklist_md = f"""# Surface checklist — {slug}
+
+Auto labels: **{", ".join(labels)}** · Platform: **{platform}**
+
+Mark with [x] after human/AI confirms.
+
+## A. Identify surface (required)
+
+- [ ] Primary surface is: web3 / web / api / mobile / hybrid
+- [ ] Assets in scope.md verified against program page (not hallucinated)
+- [ ] Out-of-scope list filled
+- [ ] Reward / severity rules understood
+
+## B. If **web3** (Cantina / Immunefi / SC)
+
+- [ ] Repo commit/tag pinned
+- [ ] Deployed addresses + chains listed
+- [ ] Roles: admin, guardian, oracle, keeper mapped
+- [ ] Run static: `slither` / Aderyn if available (operator machine)
+- [ ] Foundry fork PoC skeleton ready (`poc/`)
+- [ ] Prefer skills: web3-bug-classes, web3-grep-arsenal, web3-poc-foundry
+- [ ] Skip noisy web recon unless domains are explicitly in-scope
+
+## C. If **web / api**
+
+- [ ] Auth model mapped (cookie/JWT/OAuth)
+- [ ] Two test accounts if IDOR possible
+- [ ] Run CLI: `bb alive` → `bb urls` → (optional) `bb nuclei` **in-scope only**
+- [ ] Manual: BOLA/IDOR, authz, business logic (not only scanners)
+- [ ] Prefer skills: web2-recon, web2-vuln-classes
+
+## D. If **mobile**
+
+- [ ] Identify backend API hosts in scope
+- [ ] Test API authz; reverse APK only if program allows
+- [ ] Capture traffic only for in-scope hosts
+
+## E. Findings discipline
+
+- [ ] Every finding has steps + evidence + impact
+- [ ] PoC is reproducible (HTTP or Foundry)
+- [ ] Run triager-review.md before submit
+"""
+    (eng_root / "checklist.md").write_text(checklist_md, encoding="utf-8")
+
+    pipeline_md = f"""# Pipeline — {slug}
+
+CLI-first. AI reads outputs; does not re-scan blindly.
+
+## 0. Intake (done by `bb engage` / `bb bounty`)
+
+- Program page saved under: `{workspace_dir}`
+- Labels: {", ".join(labels)}
+- Obstacles: {"; ".join(obstacles) if obstacles else "none recorded"}
+
+## 1. Activate scope
+
+```bash
+bb scope use {slug}
+export BB_REQUIRE_SCOPE=1
+```
+
+## 2. Machine tools (in order)
+
+```bash
+{chr(10).join(commands)}
+```
+
+## 3. AI analysis (Grok Build / Claude)
+
+Read only:
+1. `engagements/{slug}/scope.md`
+2. `engagements/{slug}/checklist.md`
+3. `{workspace_dir}/report.md` + `scan-results.json` if present
+4. Per-host `$BB_ROOT/output/<host>/` summaries
+
+Then propose **next 3 high-value tests** (no full payload dump).
+
+## 4. Finding loop
+
+```bash
+# copy template
+cp engagements/{slug}/findings/_TEMPLATE.md engagements/{slug}/findings/001-short-title.md
+# add PoC under engagements/{slug}/poc/
+```
+
+## 5. Triage
+
+Fill `triager-review.md` as Reviewer (kill weak/dup/OOS).
+"""
+    (eng_root / "pipeline.md").write_text(pipeline_md, encoding="utf-8")
+
+    finding_tpl = """# Finding: <title>
+
+| Field | Value |
+|-------|--------|
+| ID | 001 |
+| Severity (claimed) | |
+| Surface | web3 / web / api / mobile |
+| Asset | |
+| Status | draft / confirmed / killed |
+
+## Summary
+(what / where / impact — 3–5 sentences)
+
+## Steps to reproduce
+1.
+2.
+3.
+
+## PoC
+- Path: `poc/...`
+- Expected vs actual:
+
+## Impact
+-
+
+## Fix
+-
+
+## Triager notes
+- Q1 reproduce now?
+- Q2 real victim?
+- Q3 concrete impact?
+- Q4 in scope?
+- Q5 not duplicate?
+- Q6 not always-rejected?
+- Q7 would triager accept?
+"""
+    (findings_dir / "_TEMPLATE.md").write_text(finding_tpl, encoding="utf-8")
+
+    triager_md = f"""# Triager / Reviewer pass — {slug}
+
+Role: **platform triager**. Be hostile to weak reports.
+
+For each file in `findings/` (except `_TEMPLATE.md`):
+
+| ID | Title | In scope? | Repro? | Impact real? | Dup risk? | Verdict |
+|----|-------|-----------|--------|--------------|-----------|---------|
+| | | | | | | accept / need info / reject |
+
+## Kill list (reject)
+
+- Theoretical only / too many preconditions
+- Out of scope asset
+- Scanner output without manual confirmation
+- Missing PoC or non-reproducible
+- Best-practice / informational without security impact
+- Duplicate of known/disclosed without new impact
+
+## Accept only if
+
+1. In-scope asset
+2. Clear steps + evidence
+3. Concrete harm (funds, PII, ATO, RCE, protocol insolvency, …)
+4. Severity matches program rules
+
+## Final recommendation
+
+- Submit: …
+- Hold / more work: …
+- Drop: …
+"""
+    (eng_root / "triager-review.md").write_text(triager_md, encoding="utf-8")
+
+    notes = f"""# Notes — {slug}
+
+## Session log
+- Intake from {program_url}
+- Skills suggested: {", ".join(skills[:8])}
+
+## Leads
+- 
+
+## Dead ends
+- 
+"""
+    (eng_root / "notes.md").write_text(notes, encoding="utf-8")
+
+    # Activate scope for subsequent bb full / recon
+    active = Path(bb_root) / ".active-scope"
+    active.write_text(str((eng_root / "scope.md").resolve()) + "\n", encoding="utf-8")
+
+    # Symlink/copy pointer from workspace
+    (workspace_dir / "ENGAGEMENT.md").write_text(
+        f"Engagement directory: `{eng_root}`\nActive scope set to: `{eng_root / 'scope.md'}`\n",
+        encoding="utf-8",
+    )
+    return eng_root
 
 
 def build_handoff_markdown(
@@ -517,32 +887,39 @@ def build_handoff_markdown(
     commands: list[str],
     obstacles: list[str],
     repo_refs: list[str],
+    eng_dir: Path | None = None,
 ) -> str:
     obstacle_block = "\n".join(f"- {item}" for item in obstacles) if obstacles else "- Không ghi nhận blocker lớn ở bước intake."
     repo_block = "\n".join(f"- `{repo}`" for repo in repo_refs) if repo_refs else "- Chưa trích xuất được repo tham chiếu."
+    eng_block = f"- Engagement: `{eng_dir}` (scope.md, checklist.md, pipeline.md, findings/, triager-review.md)" if eng_dir else "- Engagement: (not created)"
     return f"""# BBKit Agent Handoff
 
 ## Program
 - URL: {program_url}
-- Workspace: `{workspace_dir}`
-- Phân loại: {", ".join(labels)}
+- Intake workspace: `{workspace_dir}`
+- Surface labels: {", ".join(labels)}
+{eng_block}
 
-## File quan trọng
-- `program-intake.md`
-- `report.md`
-- `scan-results.json` (nếu có)
-- `program-intake.json`
+## Read first (token-saving order)
+1. Engagement `scope.md` + `checklist.md` + `pipeline.md` (if engagement exists)
+2. `program-intake.md` / `report.md` / `program-intake.json` in intake workspace
+3. `$BB_ROOT/output/<host>/` after running CLI tools
 
-## Skill nên dùng
+## Skills (lazy-load)
 {chr(10).join(f"- `{skill}`" for skill in skills)}
 
-## Repo / tài liệu nên kiểm tra trước
+## Repos / docs to check
 {repo_block}
 
-## Command nên chạy tiếp
-{chr(10).join(f"- `{command}`" if command.startswith("bb ") else f"- {command}" for command in commands)}
+## CLI next (host tools first)
+{chr(10).join(f"- `{command}`" if str(command).startswith("bb ") else f"- {command}" for command in commands)}
 
-## Blocker / lưu ý
+## Findings discipline
+- Copy `findings/_TEMPLATE.md` → `findings/00N-title.md`
+- PoC under `poc/`
+- Final pass: `triager-review.md` (triager/reviewer role)
+
+## Blockers
 {obstacle_block}
 """
 
@@ -661,39 +1038,58 @@ def build_hunt_report(
 """
 
 
-def build_agent_prompt(program_url: str, labels: list[str], workspace_dir: Path, skills: list[str], commands: list[str]) -> str:
+def build_agent_prompt(
+    program_url: str,
+    labels: list[str],
+    workspace_dir: Path,
+    skills: list[str],
+    commands: list[str],
+    eng_dir: Path | None = None,
+    slug: str = "",
+) -> str:
     label_text = ", ".join(labels)
-    return f"""Thực hiện cuộc săn lỗi bảo mật có ủy quyền
+    eng_block = ""
+    if eng_dir is not None:
+        eng_block = f"""
+Engagement (CLI-first — đọc TRƯỚC, đừng re-fetch program page):
+- Dir: `{eng_dir}`
+- `scope.md` — assets + surface labels
+- `checklist.md` — web3 / web / api / mobile gates
+- `pipeline.md` — lệnh máy cần chạy
+- `findings/_TEMPLATE.md` + `poc/` — ghi finding + PoC
+- `triager-review.md` — pass cuối góc triager/reviewer
+"""
+    return f"""Authorized bug bounty engagement (BBKit / Grok Build)
 
-Bối cảnh
-- Không gian làm việc: {workspace_dir}
-- URL mục tiêu: {program_url}
-- Phân loại ban đầu: {label_text}
-- Người dùng đã yêu cầu rõ ràng quy trình bug bounty trên mục tiêu này.
+Context
+- Intake workspace: {workspace_dir}
+- Program URL: {program_url}
+- Surface labels: {label_text}
+- Engagement slug: {slug or "(none)"}
+{eng_block}
+Hard rules:
+- In-scope only; no destructive / noisy OOS actions.
+- Prefer local CLI tools (bb alive/urls/nuclei, slither, forge) over model-only recon — saves tokens.
+- Do not invent findings. Separate: confirmed | lead | next step.
+- Every finding needs steps + impact + PoC path under findings/ and poc/.
+- Before submit: complete triager-review.md (7-question gate).
 
-Ràng buộc:
-- Tuân thủ nghiêm ngặt phạm vi và ủy quyền của chương trình săn lỗi được nêu trên trang mục tiêu.
-- Không thực hiện bất kỳ hành động phá hoại, gây ồn ào hoặc nằm ngoài phạm vi nào.
-- Tập trung vào các phát hiện thực tế, có giá trị cao về bảo mật, bề mặt tấn công, diễn giải phạm vi và hướng dẫn săn lùng các bước tiếp theo.
-- Nếu trang chương trình săn lỗi tham chiếu đến kho mã nguồn, tài liệu, hợp đồng, chuỗi hoặc địa chỉ đã triển khai, hãy sử dụng chúng làm điểm xoay chuyển.
-- Không bịa đặt phát hiện. Phân biệt rõ ràng giữa phát hiện đã xác nhận, đầu mối đáng ngờ và các bước tiếp theo được khuyến nghị.
+Workflow:
+1. Confirm surface from checklist.md (web3 vs web/api vs mobile).
+2. Run machine commands from pipeline.md (in order); read tool outputs from $BB_ROOT/output/.
+3. Analyze outputs; propose next 3 high-value tests only.
+4. On finding: copy findings/_TEMPLATE.md → 00N-title.md + PoC under poc/.
+5. Final pass as triager/reviewer (kill weak/dup/OOS).
 
-Các câu hỏi cần trả lời / các bước cần thực hiện:
-1. Đọc `program-intake.md`, `report.md`, và `agent-handoff.md`.
-2. Xác định kiến trúc giao thức và bề mặt tấn công có khả năng xảy ra.
-3. Dùng các skill phù hợp sau nếu cần: {", ".join(skills)}.
-4. Ghi chú bất kỳ đầu mối hứa hẹn, phát hiện cụ thể hoặc trở ngại nào.
-5. Nếu cần chạy thêm lệnh BBKit, ưu tiên theo thứ tự: {", ".join(commands[:6])}.
-6. Đề xuất các bước kiểm tra thủ công tiếp theo có giá trị cao nhất.
+Skills (lazy): {", ".join(skills)}
+Suggested commands: {"; ".join(commands[:8])}
 
-Định dạng đầu ra mong đợi:
-- Tóm tắt phạm vi
-- Sơ đồ bề mặt tấn công
-- Các phát hiện (chỉ những phát hiện đã xác nhận)
-- Đầu mối đáng để điều tra
-- Trở ngại / thiếu quyền truy cập
-- Các bước tiếp theo được khuyến nghị
-- Tài sản / URL đã tham chiếu
+Output format:
+- Scope summary + surface map
+- Confirmed findings only (with PoC paths)
+- Leads worth investigating
+- Blockers
+- Next 3 actions
 """
 
 
@@ -702,14 +1098,25 @@ def main() -> int:
     parser.add_argument("program_url", help="Bug bounty program URL or local HTML file path")
     parser.add_argument("--browser", choices=("off", "auto", "standard"), default="auto")
     parser.add_argument("--timeout", type=int, default=20)
-    parser.add_argument("--skip-scan", action="store_true")
+    parser.add_argument("--skip-scan", action="store_true", help="Intake only; do not run bb alive/urls/nuclei")
     parser.add_argument("--max-targets", type=int, default=6)
+    parser.add_argument("--slug", default="", help="Engagement folder name under engagements/ (e.g. rogo-recon)")
+    parser.add_argument("--no-engage", action="store_true", help="Do not create engagements/ scope bundle")
+    parser.add_argument("--intake-only", action="store_true", help="Alias: skip-scan + still create engagement")
     args = parser.parse_args()
+
+    if args.intake_only:
+        args.skip_scan = True
 
     bb_root = os.environ.get("BB_ROOT")
     if not bb_root:
         print("BB_ROOT is required", file=sys.stderr)
         return 1
+
+    # Ensure lib imports work when invoked as python3 program_hunt.py
+    lib_dir = str(Path(__file__).resolve().parent)
+    if lib_dir not in sys.path:
+        sys.path.insert(0, lib_dir)
 
     obstacles: list[str] = []
     if is_local_input(args.program_url):
@@ -724,7 +1131,10 @@ def main() -> int:
             obstacles.append(f"Trang chương trình trả về HTTP {status_code}")
 
     if html and is_antibot_page(html):
-        obstacles.append("Trang chương trình hiển thị anti-bot/WAF, cần mở thủ công bằng browser adapter trong phạm vi được phép.")
+        obstacles.append(
+            "Trang chương trình hiển thị anti-bot/WAF — thử CloakBrowser (bb browser / auto). "
+            "Không phải Akamai bypass chuyên dụng; chỉ browser automation."
+        )
 
     if html and args.browser in {"auto", "standard"} and not is_antibot_page(html) and should_render_in_browser(html):
         rendered_html, render_error = render_with_cloakbrowser(final_url, args.timeout)
@@ -738,14 +1148,15 @@ def main() -> int:
             html = rendered_html
             if not is_antibot_page(rendered_html):
                 obstacles = [item for item in obstacles if "anti-bot/WAF" not in item]
-        elif render_error and args.browser == "standard":
-            obstacles.append(render_error)
+        elif render_error:
+            obstacles.append(f"CloakBrowser: {render_error}")
 
     if not html:
         html = "<html><body>Unavailable program page</body></html>"
 
     page_data = extract_page_data(html, final_url)
-    labels = classify_program(page_data)
+    labels = classify_program(page_data, args.program_url)
+    platform = detect_platform(args.program_url, page_data)
     skills = build_skill_plan(labels, page_data)
 
     source_host = (urlparse(final_url).hostname or "").lower()
@@ -755,7 +1166,10 @@ def main() -> int:
     commands = build_command_plan(args.program_url, targets, labels)
 
     program_name = page_data.get("title") or source_host or "program"
-    slug = slugify(program_name)
+    slug = slugify(args.slug) if args.slug else slugify(program_name)
+    # Prefer short stable slug for engagement folder
+    if len(slug) > 48:
+        slug = slug[:48].rstrip("-")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     workspace_dir = Path(bb_root) / "output" / "programs" / f"{slug}-{timestamp}"
     workspace_dir.mkdir(parents=True, exist_ok=True)
@@ -767,9 +1181,17 @@ def main() -> int:
                 "program_url": args.program_url,
                 "final_url": final_url,
                 "status_code": status_code,
+                "platform": platform,
                 "labels": labels,
+                "slug": slug,
                 "targets": [asdict(target) for target in targets],
-                "page": page_data,
+                "page": {
+                    "title": page_data.get("title"),
+                    "contract_addresses": page_data.get("contract_addresses"),
+                    "repo_refs": page_data.get("repo_refs"),
+                    "domains_in_text": page_data.get("domains_in_text"),
+                    "asset_lines": page_data.get("asset_lines"),
+                },
                 "obstacles": obstacles,
             },
             indent=2,
@@ -785,12 +1207,39 @@ def main() -> int:
     )
     intake_md = "\n".join(f"- {line}" for line in intake_lines) if intake_lines else "- Chưa trích xuất được nội dung rõ ràng."
     (workspace_dir / "program-intake.md").write_text(
-        f"# Program Intake\n\n- Program URL: {args.program_url}\n- Final URL: {final_url}\n- Phân loại: {', '.join(labels)}\n\n## Scope / Rules / Rewards\n{intake_md}\n",
+        f"# Program Intake\n\n- Program URL: {args.program_url}\n- Final URL: {final_url}\n"
+        f"- Platform: {platform}\n- Phân loại: {', '.join(labels)}\n- Engagement slug: `{slug}`\n\n"
+        f"## Scope / Rules / Rewards\n{intake_md}\n",
         encoding="utf-8",
     )
 
+    eng_dir = None
+    if not args.no_engage:
+        eng_dir = write_engagement_bundle(
+            bb_root,
+            slug,
+            args.program_url,
+            final_url,
+            platform,
+            labels,
+            page_data,
+            targets,
+            obstacles,
+            skills,
+            commands,
+            workspace_dir,
+        )
+
     (workspace_dir / "agent-prompt.md").write_text(
-        build_agent_prompt(args.program_url, labels, workspace_dir, skills, commands),
+        build_agent_prompt(
+            args.program_url,
+            labels,
+            workspace_dir,
+            skills,
+            commands,
+            eng_dir=eng_dir,
+            slug=slug,
+        ),
         encoding="utf-8",
     )
     (workspace_dir / "agent-handoff.md").write_text(
@@ -802,11 +1251,19 @@ def main() -> int:
             commands,
             obstacles,
             page_data.get("repo_refs", []),
+            eng_dir=eng_dir,
         ),
         encoding="utf-8",
     )
 
-    if not args.skip_scan and targets:
+    # Web3-primary: default skip noisy nuclei unless web/api also present
+    run_scan = not args.skip_scan and bool(targets)
+    if run_scan and "web3" in labels and not any(x in labels for x in ("web", "api")):
+        # Still allow alive on docs hosts only if operator wants — default skip auto scan
+        obstacles.append("Surface chính Web3: bỏ auto web scan (dùng --skip-scan mặc định logic). Chạy tools web chỉ khi domain in-scope.")
+        run_scan = False
+
+    if run_scan:
         run_program_scan(bb_root, labels, targets, workspace_dir)
 
     report = build_hunt_report(
@@ -825,6 +1282,12 @@ def main() -> int:
 
     print(f"Workspace: {workspace_dir}")
     print(f"Report: {report_path}")
+    print(f"Labels: {', '.join(labels)}")
+    print(f"Platform: {platform}")
+    if eng_dir:
+        print(f"Engagement: {eng_dir}")
+        print(f"Scope active: {eng_dir / 'scope.md'}")
+        print("Next: read checklist.md + pipeline.md; run CLI tools; then triager-review.md")
     return 0
 
 

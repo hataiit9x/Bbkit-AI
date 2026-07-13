@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- **`bb engage <program-url>`** — CLI-first intake for Grok Build / agents
+  - Creates `engagements/<slug>/`: `scope.md`, `checklist.md` (web3/web/api/mobile), `pipeline.md`, `findings/`, `poc/`, `triager-review.md`
+  - Activates scope; saves raw page under `output/programs/`
+  - Default **no auto scan** (token-saving); `--scan` for probes
+- `program_hunt.py`: surface classify, platform detect (Cantina/…), engagement bundle, web3-primary skip noisy web scan, honest CloakBrowser messaging
+- bbkit skill + docs: Cantina-style prompt → engage → CLI tools → findings/PoC → triager
+- CloakBrowser remains for hard pages (`bb browser`); not marketed as Akamai bypass
+
 ## 0.4.0
 
 - Wire `config/config.yaml` → runtime (`load_bb_config`): threads, rate, nuclei severity, scope, katana depth, naabu ports, dashboard host/port, resolvers

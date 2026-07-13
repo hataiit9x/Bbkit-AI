@@ -17,9 +17,10 @@ BBKit commands:
   bb update
   bb version
   bb scope …                 # authorized engagement scope
+  bb engage <program-url>    # intake + engagements/<slug>/ (CLI-first, default no scan)
+  bb bounty <program-url>    # same engine; optional auto probes (use engage for Grok flow)
   bb config                  # effective config (yaml + env)
   bb dashboard [--host] [--port]
-  bb bounty <program-url>
   bb browser <url>
   bb ai help | sync | doctor | run …
 
@@ -31,7 +32,8 @@ Recon (scope-checked when active):
 
 Paths:
   $BB_ROOT/output/<domain>/
-  $BB_ROOT/engagements/
+  $BB_ROOT/output/programs/
+  $BB_ROOT/engagements/<slug>/   # scope.md checklist.md pipeline.md findings/ triager
   $BB_ROOT/config/config.yaml
   $BB_ROOT/ai/bug-bounty/ | web3-skills/
   $BB_ROOT/skills/bbkit/
@@ -39,6 +41,9 @@ EOF
     ;;
   scope)
     "$BB_ROOT/recon/scope" "$@"
+    ;;
+  engage)
+    "$BB_ROOT/recon/engage" "$@"
     ;;
   config|config-show)
     "$BB_ROOT/recon/config-show" "$@"

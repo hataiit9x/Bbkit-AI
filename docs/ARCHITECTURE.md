@@ -18,7 +18,9 @@ flowchart TD
 
 - `bin/bb` — main CLI dispatcher  
 - `lib/common.sh` — logging, tool helpers, **scope allowlist**  
-- `lib/program_hunt.py` — program-oriented helpers (`bb bounty`)  
+- `lib/program_hunt.py` — program intake + engagement bundle (`bb engage` / `bb bounty`)  
+- `recon/engage` — CLI-first entry: scope/checklist/pipeline/findings/triager  
+
 - `plugins/` — install/update/doctor for external tools  
 - `recon/` — workflows (subs, full, scope, ai-sync, …)  
 - `skills/bbkit/` — thin AI orchestrator (scope-first modes)  

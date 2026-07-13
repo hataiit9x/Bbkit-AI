@@ -46,6 +46,29 @@ docker run --rm -p 8787:8787 -v "$PWD/out:/data/BugBounty/output" \
 # see docs/DOCKER.md
 ```
 
+### CLI-first program intake (Cantina / Immunefi / H1)
+
+Preferred for **Grok Build** and agents — create engagement folder + checklist, then run host tools:
+
+```bash
+bb engage 'https://cantina.xyz/code/<uuid>/overview' --slug rogo-recon
+# → engagements/rogo-recon/{scope,checklist,pipeline,triager-review}.md
+# → findings/_TEMPLATE.md, poc/ ; scope activated
+# → output/programs/rogo-recon-<ts>/ (raw page + handoff)
+
+# AI reads checklist (web3 vs web/api vs mobile), runs e.g.:
+bb alive <in-scope-host>
+bb urls <in-scope-host>
+# Web3: forge/slither on pinned repo; skip noisy web scan if pure SC
+
+# Finding + PoC + triager
+cp ~/BugBounty/engagements/rogo-recon/findings/_TEMPLATE.md \
+   ~/BugBounty/engagements/rogo-recon/findings/001-title.md
+# fill triager-review.md before submit
+```
+
+`bb engage` defaults to **intake only** (no auto nuclei). Pass `--scan` or use `bb bounty` for first-pass probes.
+
 ### Authorized recon flow
 
 ```bash
@@ -67,7 +90,7 @@ export BB_REQUIRE_SCOPE=1        # refuse recon if no active scope / OOS host
 bb full acme.com
 ```
 
-### AI (Claude Code / Cursor)
+### AI (Grok Build / Claude Code / Cursor)
 
 ```bash
 bb ai sync                       # skills + commands + web3 + bbkit
@@ -79,10 +102,16 @@ bb validate …
 Prompt starter:
 
 ```text
-Use skills/bbkit (or Claude skill bbkit). Authorized scope only.
-Mode: web-review | web3-review | validate | report
-Engagement: ~/BugBounty/engagements/<slug>/scope.md
+Use bbkit skill. Authorized only.
+bb engage 'https://cantina.xyz/code/<id>/overview' --slug <name>
+Follow checklist.md + pipeline.md (CLI tools first). Findings + PoC; triager-review last.
 ```
+
+Optional UI: `bb dashboard` — not required for the CLI hunt path.
+
+### CloakBrowser
+
+`bb browser <url>` and auto-render in `bb engage` use **cloakbrowser** (plugin `browser-tools`) for JS / light anti-bot pages. Not a dedicated Akamai bypass product.
 
 ---
 
@@ -92,6 +121,7 @@ Engagement: ~/BugBounty/engagements/<slug>/scope.md
 bb help | doctor | update | version
 
 bb scope status|list|new <slug>|use <slug>|check <host>|clear
+bb engage <program-url> [--slug name] [--scan]
 
 bb subs|alive|urls|js|port|nuclei|report|full <domain>
 
@@ -100,6 +130,7 @@ bb browser <url>
 bb hunt | validate | intel | scan-cves | arsenal
 
 bb ai sync | doctor | run <tool> [args…]
+bb config | dashboard
 ```
 
 ---
