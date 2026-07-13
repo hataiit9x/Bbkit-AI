@@ -4,7 +4,7 @@
 
 > Use only on assets you own or have **explicit permission** to test.
 
-**Version:** see `VERSION` (current: **0.4.0**)
+**Version:** see `VERSION` (current: **0.5.0**)
 
 ---
 
@@ -12,9 +12,9 @@
 
 | Layer | Role |
 |-------|------|
-| **`bb` CLI** | Recon pipeline, doctor, update, scope, AI sync |
+| **`bb` CLI** | Recon pipeline, doctor, update, scope, engage, AI sync |
 | **Plugins** | Install subfinder, httpx, nuclei, katana, naabu, … |
-| **Scope** | Engagement `scope.md` + allowlist checks before recon |
+| **Scope / engage** | Program intake → `engagements/<slug>/` + allowlist before recon |
 | **AI bundle** | Vendored methodology/tools from `ref/claude-bug-bounty` → `~/BugBounty/ai/bug-bounty` |
 | **bbkit skill** | Thin orchestrator (`skills/bbkit/`) — scope-first, lazy modes |
 | **Web3 skills** | Auto-cloned on `bb ai sync` (Immunefi-oriented classes / Foundry) |
@@ -33,44 +33,148 @@ source ~/.bashrc
 bb doctor
 bb config
 bb ai sync
-bb dashboard          # http://127.0.0.1:8787/
+bb dashboard          # optional UI — http://127.0.0.1:8787/
 ```
 
 ### Docker (optional)
 
 ```bash
-docker build -t bbkit:0.4 .
-docker run --rm bbkit:0.4 doctor
+docker build -t bbkit:0.5 .
+docker run --rm bbkit:0.5 doctor
 docker run --rm -p 8787:8787 -v "$PWD/out:/data/BugBounty/output" \
-  bbkit:0.4 dashboard --host 0.0.0.0
+  bbkit:0.5 dashboard --host 0.0.0.0
 # see docs/DOCKER.md
 ```
 
-### CLI-first program intake (any platform, any agent)
+---
 
-Same flow for **Intigriti, HackenProof, HackerOne, Bugcrowd, YesWeHack, Immunefi, Cantina, Code4rena, …** and any private policy URL. Drive it from **Codex, Claude Code, Factory Droid, Grok Build, Z.ai/ZCode, Cursor, …** — only requirement is shell + `bb` on PATH.
+## `bb engage` flow (primary hunt path)
 
-```bash
-bb engage 'https://app.intigriti.com/…/…' --slug acme-intigriti
-# or: bb engage 'https://hackenproof.com/…' --slug acme-hp
-# → engagements/<slug>/{scope,checklist,pipeline,triager-review}.md
-# → findings/_TEMPLATE.md, poc/ ; scope activated
-# → output/programs/<slug>-<ts>/ (raw page + handoff)
+Works for **any program policy URL** (Intigriti, HackenProof, HackerOne, Bugcrowd, YesWeHack, Immunefi, Cantina, Code4rena, private HTML, …) and **any agent** with shell (Codex, Claude Code, Factory Droid, Grok Build, Z.ai/ZCode, Cursor, plain terminal).
 
-# Agent reads checklist (web3 vs web/api vs mobile), runs host tools:
-bb alive <in-scope-host>
-bb urls <in-scope-host>
-# Web3 contests: forge/slither; skip noisy web scan if pure SC
+### End-to-end
 
-# Finding + PoC + triager
-cp ~/BugBounty/engagements/<slug>/findings/_TEMPLATE.md \
-   ~/BugBounty/engagements/<slug>/findings/001-title.md
+```text
+Operator / AI agent
+        │
+        │  bb engage '<PROGRAM_URL>' [--slug name]
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ 1. FETCH program page                                     │
+│    httpx/requests → if JS/anti-bot → CloakBrowser (auto)  │
+└───────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ 2. PARSE + CLASSIFY                                       │
+│    · Platform (H1 / Intigriti / HackenProof / … / unknown)│
+│    · Surface labels: web3 | web | api | mobile            │
+│    · Domains, contracts, repos from page text             │
+└───────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ 3. WRITE engagement + intake                              │
+│    engagements/<slug>/                                    │
+│      scope.md          program + assets + surface table   │
+│      checklist.md      gates by surface type              │
+│      pipeline.md       ordered host CLI commands          │
+│      findings/         _TEMPLATE.md                       │
+│      poc/              PoC artifacts                      │
+│      triager-review.md final reviewer pass                │
+│      notes.md                                             │
+│    output/programs/<slug>-<timestamp>/                    │
+│      program-page.html, program-intake.md/.json          │
+│      report.md, agent-handoff.md, agent-prompt.md         │
+│    .active-scope → points at scope.md                     │
+└───────────────────────────────────────────────────────────┘
+        │
+        │  default: STOP here (no auto nuclei) — save tokens
+        │  optional: --scan → scoped alive/urls/nuclei
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ 4. AGENT / OPERATOR                                       │
+│    Read scope.md + checklist.md + pipeline.md             │
+│    Confirm surface (web3 vs web/api vs mobile)            │
+│    Run CLI tools from pipeline (not model-only recon)     │
+│    Analyze $BB_ROOT/output/<host>/ → next 3 tests         │
+└───────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ 5. FINDING + PoC                                          │
+│    findings/001-title.md + poc/…                          │
+└───────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ 6. TRIAGER / REVIEWER                                     │
+│    Fill triager-review.md (7-question gate) → submit      │
+└───────────────────────────────────────────────────────────┘
 ```
 
-`bb engage` defaults to **intake only** (no auto nuclei). Pass `--scan` or use `bb bounty` for first-pass probes.
+### Commands
 
+```bash
+# Intake only (default) — recommended for AI agents
+bb engage 'https://app.intigriti.com/…/…' --slug acme-intigriti
+bb engage 'https://hackenproof.com/…' --slug acme-hp
+bb engage 'https://hackerone.com/…' --slug acme-h1
 
-### Authorized recon flow
+# Intake + first-pass probes (when domains are clearly in-scope)
+bb engage 'https://…' --slug acme --scan
+
+# Same engine, historical name (may probe more by default path)
+bb bounty 'https://…'
+```
+
+### After engage — what to read / run
+
+| Step | Action |
+|------|--------|
+| 1 | Open `~/BugBounty/engagements/<slug>/scope.md` — verify assets (auto extract can miss/mis-parse) |
+| 2 | Open `checklist.md` — mark surface: **web3 / web / api / mobile** |
+| 3 | Follow `pipeline.md` CLI order, e.g. `bb alive host` → `bb urls host` → optional `bb nuclei host` |
+| 4 | Pure **web3**: prefer repo/contracts + forge/slither; skip noisy web recon unless domains in-scope |
+| 5 | Read tool output under `~/BugBounty/output/<host>/` (and intake `report.md`) |
+| 6 | Finding: `cp findings/_TEMPLATE.md findings/001-title.md` + PoC under `poc/` |
+| 7 | Fill `triager-review.md` before any platform submit |
+
+```bash
+bb scope use acme-intigriti   # already set by engage; re-run if needed
+export BB_REQUIRE_SCOPE=1
+
+bb alive api.example.com
+bb urls api.example.com
+# bb nuclei api.example.com   # only if checklist says web/api
+
+cp ~/BugBounty/engagements/acme-intigriti/findings/_TEMPLATE.md \
+   ~/BugBounty/engagements/acme-intigriti/findings/001-short-title.md
+# write poc/… then edit triager-review.md
+```
+
+### Flags
+
+| Flag | Meaning |
+|------|---------|
+| `--slug NAME` | Engagement folder name (`engagements/NAME/`) |
+| `--scan` | Also run scoped probes after intake |
+| `--browser auto\|off\|standard` | CloakBrowser for hard pages (default `auto`) |
+| `--timeout N` | Fetch / browser timeout |
+| `--no-engage` | Only `output/programs/…` (no engagements/ bundle) |
+
+### Agent prompt (any product)
+
+```text
+Use bbkit skill if present. Authorized only.
+bb engage '<PROGRAM_POLICY_URL>' --slug <name>
+Then: scope.md → checklist.md → pipeline.md (CLI first).
+Findings + PoC under findings/ and poc/. triager-review.md last.
+```
+
+---
+
+### Authorized recon flow (manual scope, no program URL)
 
 ```bash
 bb scope new acme-h1
@@ -94,7 +198,7 @@ bb full acme.com
 ### AI (multi-agent)
 
 ```bash
-bb ai sync                       # Claude / Codex / .agents / Factory (+ BB_EXTRA_SKILL_ROOTS)
+bb ai sync                       # Claude / Codex / .agents / Factory
 bb ai doctor
 bb hunt …                        # when AI bundle tools present
 bb validate …
@@ -106,16 +210,7 @@ export BB_EXTRA_SKILL_ROOTS="$HOME/.cursor/skills:$HOME/.zai/skills"
 bb ai sync
 ```
 
-Prompt starter (any agent):
-
-```text
-Use bbkit skill if present. Authorized only.
-bb engage '<PROGRAM_POLICY_URL>' --slug <name>
-Follow checklist.md + pipeline.md (CLI first). Findings + PoC; triager-review last.
-```
-
-Optional UI: `bb dashboard` — not required for the CLI path.
-
+Optional UI: `bb dashboard` — not required for the CLI path. See **`bb engage` flow** above for the agent hunt sequence.
 
 ### CloakBrowser
 
@@ -158,7 +253,11 @@ Bbkit-AI/                 # this repo
 
 ~/BugBounty/              # default BB_ROOT after install
   bin/ output/ tools/ wordlists/
-  engagements/<slug>/scope.md
+  engagements/<slug>/     # after bb engage
+    scope.md checklist.md pipeline.md triager-review.md
+    findings/  poc/  notes.md  .private/
+  output/programs/<slug>-<ts>/   # raw page + handoff
+  output/<host>/                 # recon tool output
   ai/bug-bounty/          # installed AI tools/skills
   ai/web3-skills/         # after bb ai sync
   skills/bbkit/
