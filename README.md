@@ -121,11 +121,8 @@ bb engage 'https://app.intigriti.com/…/…' --slug acme-intigriti
 bb engage 'https://hackenproof.com/…' --slug acme-hp
 bb engage 'https://hackerone.com/…' --slug acme-h1
 
-# Intake + first-pass probes (when domains are clearly in-scope)
+# Intake + first-pass probes (same as bb bounty when targets exist)
 bb engage 'https://…' --slug acme --scan
-
-# Same engine, historical name (may probe more by default path)
-bb bounty 'https://…'
 ```
 
 ### After engage — what to read / run
@@ -174,6 +171,135 @@ Findings + PoC under findings/ and poc/. triager-review.md last.
 
 ---
 
+## `bb bounty` flow (intake + auto recon)
+
+Same engine as `bb engage` (`lib/program_hunt.py`). Difference: **default tries automatic web probes** after intake (unless web3-only or no targets).
+
+| | `bb engage` | `bb bounty` |
+|--|-------------|-------------|
+| Wrapper | `recon/engage` → adds `--intake-only` | `recon/bounty` → raw `program_hunt.py` |
+| Default scan | **Off** (token-friendly for agents) | **On** when parse finds host targets |
+| Engagement folder | Yes (unless `--no-engage`) | Yes (unless `--no-engage`) |
+| Equivalent | — | `bb engage URL --scan` (when scan would run) |
+| Force intake only | default | `bb bounty URL --skip-scan` or `--intake-only` |
+
+### End-to-end
+
+```text
+bb bounty '<PROGRAM_URL>' [--slug name] [flags]
+        │
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ A. Same as engage steps 1–3                               │
+│    fetch → classify platform/surface → write engagement   │
+│    + output/programs/<slug>-<ts>/ (html, intake, handoff) │
+│    + activate .active-scope                               │
+└───────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ B. Build scan target list (max --max-targets, default 6)  │
+│    From page: domains, links, API hosts, wildcards        │
+│    Skip platform/social hosts (H1, GitHub, Discord, …)    │
+│    Prefer kind: api > asset > docs                        │
+└───────────────────────────────────────────────────────────┘
+        │
+        ├── no targets ──────────────────► skip scan, note obstacle
+        │
+        ├── labels = web3 only (no web/api)
+        │     ► skip auto web scan (avoid noisy nuclei on contests)
+        │     ► obstacle note: use forge/slither / manual domains
+        │
+        └── has targets + (web or api or non-web3-only)
+              │
+              ▼
+┌───────────────────────────────────────────────────────────┐
+│ C. run_program_scan — per host, sequential CLI            │
+│                                                           │
+│    if allow_subdomains:  bb subs <host>                   │
+│    else: seed output/<host>/subs/resolved.txt = host      │
+│    always:               bb alive <host>                  │
+│                          bb urls  <host>                  │
+│                          bb js    <host>                  │
+│    if kind != docs:      bb nuclei <host>                 │
+│                                                           │
+│    Writes: output/programs/.../scan-results.json          │
+│    Also normal recon under: output/<host>/…               │
+└───────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ D. report.md (hunt summary)                               │
+│    scope snippets · targets · leads (nuclei/urls peek)    │
+│    obstacles · next steps · suggested skills/commands     │
+│    Print: Workspace, Report, Labels, Platform, Engagement │
+└───────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ E. Human / AI (same as engage steps 4–6)                  │
+│    Verify scope · manual deep tests · findings/PoC        │
+│    triager-review.md — nuclei hits are LEADS not findings │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Commands
+
+```bash
+# Full path: intake + engagement + auto probes (when applicable)
+bb bounty 'https://hackerone.com/…' --slug acme-h1
+bb bounty 'https://app.intigriti.com/…' --slug acme-intigriti
+
+# Intake + engagement only (same effect as bb engage)
+bb bounty 'https://…' --skip-scan
+bb bounty 'https://…' --intake-only
+
+# Cap hosts probed
+bb bounty 'https://…' --max-targets 3
+
+# Local saved policy HTML (no network fetch of program page)
+bb bounty /path/to/saved-program.html --slug acme --browser off
+
+# No engagements/ folder — only output/programs/
+bb bounty 'https://…' --no-engage
+```
+
+### What you get on disk
+
+| Path | Content |
+|------|---------|
+| `engagements/<slug>/` | Same bundle as engage (`scope`, `checklist`, `pipeline`, `findings`, `triager-review`, …) |
+| `output/programs/<slug>-<ts>/program-page.html` | Saved program page |
+| `…/program-intake.md` + `.json` | Parsed metadata, labels, targets |
+| `…/agent-handoff.md` + `agent-prompt.md` | For any AI agent follow-up |
+| `…/scan-results.json` | **Only if scan ran** — per command rc + truncated output |
+| `…/report.md` | Hunt summary + leads |
+| `output/<host>/` | Normal `bb alive/urls/js/nuclei` artifacts when scanned |
+
+### Flags (`bb bounty` / `program_hunt.py`)
+
+| Flag | Meaning |
+|------|---------|
+| `--slug NAME` | Engagement folder name |
+| `--skip-scan` / `--intake-only` | No auto `subs/alive/urls/js/nuclei` |
+| `--max-targets N` | Cap hosts (default **6**) |
+| `--browser auto\|off\|standard` | CloakBrowser for hard pages |
+| `--timeout N` | Fetch / browser timeout |
+| `--no-engage` | Skip `engagements/` + scope activate |
+
+### When to use which
+
+| Goal | Command |
+|------|---------|
+| AI agent starts program (save tokens, control tools) | **`bb engage URL`** |
+| Operator wants first-pass recon in one shot | **`bb bounty URL`** |
+| Engage + probes | `bb engage URL --scan` ≈ `bb bounty URL` |
+| Pure web3 contest page | either; auto scan is **skipped** if labels are web3-only |
+
+> **Important:** Auto nuclei/URL hits are **leads**, not confirmed findings. Always manual verify + write `findings/` + PoC + `triager-review.md`.
+
+---
+
 ### Authorized recon flow (manual scope, no program URL)
 
 ```bash
@@ -210,7 +336,7 @@ export BB_EXTRA_SKILL_ROOTS="$HOME/.cursor/skills:$HOME/.zai/skills"
 bb ai sync
 ```
 
-Optional UI: `bb dashboard` — not required for the CLI path. See **`bb engage` flow** above for the agent hunt sequence.
+Optional UI: `bb dashboard` — not required for the CLI path. See **`bb engage`** / **`bb bounty`** flows above.
 
 ### CloakBrowser
 
