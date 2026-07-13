@@ -1,56 +1,148 @@
-# BBKit
+# BBKit (Bbkit-AI)
 
-BBKit is a lightweight Bug Bounty workstation and recon framework for Linux, optimized for Ubuntu/Debian, ARM64, x86_64, VPS, and Oracle Cloud ARM.
+**Bug bounty workstation** for Linux / **WSL** / VPS (Ubuntu/Debian, ARM64 + x86_64): recon CLI, plugin tool install, authorized **scope**, and AI skill sync (Claude Code, Codex, agents) + Web3 knowledge pack.
 
-## Goals
+> Use only on assets you own or have **explicit permission** to test.
 
-- One-command installation
-- Works on ARM64 and x86_64
-- Plugin-based tool management
-- Automated recon workflows
-- Clean output structure
-- Easy to extend
-- Future-ready for AI reports and dashboard
+**Version:** see `VERSION` (current: **0.2.0**)
 
-## Quick Start
+---
+
+## What you get
+
+| Layer | Role |
+|-------|------|
+| **`bb` CLI** | Recon pipeline, doctor, update, scope, AI sync |
+| **Plugins** | Install subfinder, httpx, nuclei, katana, naabu, … |
+| **Scope** | Engagement `scope.md` + allowlist checks before recon |
+| **AI bundle** | Vendored methodology/tools from `ref/claude-bug-bounty` → `~/BugBounty/ai/bug-bounty` |
+| **bbkit skill** | Thin orchestrator (`skills/bbkit/`) — scope-first, lazy modes |
+| **Web3 skills** | Auto-cloned on `bb ai sync` (Immunefi-oriented classes / Foundry) |
+
+---
+
+## Quick start (WSL)
 
 ```bash
-chmod +x install.sh
+git clone https://github.com/hataiit9x/Bbkit-AI.git
+cd Bbkit-AI
+chmod +x install.sh bin/bb recon/*
 ./install.sh
 source ~/.bashrc
+
 bb doctor
+bb ai sync
 ```
 
-Run recon:
+### Authorized recon flow
 
 ```bash
-bb full example.com
+bb scope new acme-h1
+# edit ~/BugBounty/engagements/acme-h1/scope.md  (list in-scope domains)
+bb scope use acme-h1
+bb scope check api.acme.com
+
+bb full acme.com                 # subs → alive → urls → js → ports → nuclei → report
+# output: ~/BugBounty/output/acme.com/
 ```
 
-Output:
+Enforce scope hard:
+
+```bash
+export BB_REQUIRE_SCOPE=1        # refuse recon if no active scope / OOS host
+bb full acme.com
+```
+
+### AI (Claude Code / Cursor)
+
+```bash
+bb ai sync                       # skills + commands + web3 + bbkit
+bb ai doctor
+bb hunt …                        # when AI bundle tools present
+bb validate …
+```
+
+Prompt starter:
 
 ```text
-~/BugBounty/output/example.com/
+Use skills/bbkit (or Claude skill bbkit). Authorized scope only.
+Mode: web-review | web3-review | validate | report
+Engagement: ~/BugBounty/engagements/<slug>/scope.md
 ```
+
+---
 
 ## Commands
 
 ```bash
-bb help
-bb doctor
-bb update
-bb version
+bb help | doctor | update | version
 
-bb subs example.com
-bb alive example.com
-bb urls example.com
-bb js example.com
-bb port example.com
-bb nuclei example.com
-bb report example.com
-bb full example.com
+bb scope status|list|new <slug>|use <slug>|check <host>|clear
+
+bb subs|alive|urls|js|port|nuclei|report|full <domain>
+
+bb bounty <program-url>
+bb browser <url>
+bb hunt | validate | intel | scan-cves | arsenal
+
+bb ai sync | doctor | run <tool> [args…]
 ```
 
-## Legal Notice
+---
 
-Use BBKit only on assets you own or have explicit permission to test.
+## Layout
+
+```text
+Bbkit-AI/                 # this repo
+  bin/bb                  # CLI
+  lib/                    # common.sh, program_hunt.py
+  plugins/                # tool installers
+  recon/                  # workflows
+  skills/bbkit/           # thin AI orchestrator
+  templates/engagement/   # scope.md templates
+  ref/claude-bug-bounty/  # AI methodology vendor (upstream MIT)
+  install.sh
+
+~/BugBounty/              # default BB_ROOT after install
+  bin/ output/ tools/ wordlists/
+  engagements/<slug>/scope.md
+  ai/bug-bounty/          # installed AI tools/skills
+  ai/web3-skills/         # after bb ai sync
+  skills/bbkit/
+```
+
+---
+
+## Config
+
+- `config/config.yaml` — threads, rate, nuclei severity defaults  
+- Env: `BB_ROOT`, `BB_REQUIRE_SCOPE=1`, `BB_NUCLEI_SEVERITY=critical,high`, `BB_SCOPE_FILE`, `BB_WEB3_URL`
+
+---
+
+## Safety
+
+1. Prefer `bb scope use` before recon.  
+2. Set `BB_REQUIRE_SCOPE=1` on shared VPS.  
+3. Never commit `.private/` cookies or API keys.  
+4. Nuclei defaults to critical/high/medium (override with env).  
+
+---
+
+## Docs
+
+See `docs/` (architecture, plugins, roadmap). AI depth lives under installed `ai/bug-bounty` + web3 skills after sync.
+
+---
+
+## Attribution
+
+- Recon workstation: BBKit contributors  
+- AI methodology/tools vendor: [shuvonsec/claude-bug-bounty](https://github.com/shuvonsec/claude-bug-bounty) (MIT) under `ref/`  
+- Web3 skills (synced): [shuvonsec/web3-bug-bounty-hunting-ai-skills](https://github.com/shuvonsec/web3-bug-bounty-hunting-ai-skills) (MIT)  
+
+---
+
+## License
+
+MIT — see `LICENSE`.

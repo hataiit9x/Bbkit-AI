@@ -1,7 +1,40 @@
+# Runtime / install tree (never commit scan results)
 output/
 logs/
 *.log
 *.tmp
 .DS_Store
 .env
+.env.*
 config/local.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+
+# Secrets & private engagements
+**/.private/
+engagements/*/.private/
+**/cookies*.json
+**/auth*.json
+**/*session*.json
+.secrets/
+
+# Optional local vendor clones (if not using ref/)
+vendor/web3/
+.ref-web3/
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+
+# Tool caches
+.nuclei-templates/
+.httpx/
+.pytest_cache/

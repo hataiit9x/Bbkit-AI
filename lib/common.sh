@@ -8,8 +8,12 @@ BB_WORDLISTS="$BB_ROOT/wordlists"
 BB_TEMPLATES="$BB_ROOT/templates"
 BB_REF="$BB_ROOT/ref"
 BB_AI_ROOT="$BB_ROOT/ai/bug-bounty"
+BB_ENGAGEMENTS="${BB_ENGAGEMENTS:-$BB_ROOT/engagements}"
+BB_ACTIVE_SCOPE="${BB_ACTIVE_SCOPE:-$BB_ROOT/.active-scope}"
+BB_SKILLS_ROOT="${BB_SKILLS_ROOT:-$BB_ROOT/skills}"
+BB_WEB3_ROOT="${BB_WEB3_ROOT:-$BB_ROOT/ai/web3-skills}"
 
-mkdir -p "$BB_BIN" "$BB_TOOLS" "$BB_OUTPUT" "$BB_WORDLISTS" "$BB_TEMPLATES" "$BB_ROOT/logs"
+mkdir -p "$BB_BIN" "$BB_TOOLS" "$BB_OUTPUT" "$BB_WORDLISTS" "$BB_TEMPLATES" "$BB_ROOT/logs" "$BB_ENGAGEMENTS"
 
 export GOPATH="${GOPATH:-$HOME/go}"
 export PATH="/usr/local/go/bin:$GOPATH/bin:$BB_BIN:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
@@ -75,4 +79,83 @@ require_target() {
     err "target required"
     exit 1
   fi
+}
+
+# Active engagement scope file (path), if any.
+active_scope_file() {
+  if [[ -n "${BB_SCOPE_FILE:-}" && -f "$BB_SCOPE_FILE" ]]; then
+    echo "$BB_SCOPE_FILE"
+    return 0
+  fi
+  if [[ -f "$BB_ACTIVE_SCOPE" ]]; then
+    local p
+    p="$(tr -d '\r\n' <"$BB_ACTIVE_SCOPE")"
+    if [[ -n "$p" && -f "$p" ]]; then
+      echo "$p"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# Extract hostnames/domains from a scope.md (lines under ## In-scope or bare domain-looking tokens).
+scope_allowlist() {
+  local scope_file="${1:-}"
+  [[ -n "$scope_file" && -f "$scope_file" ]] || return 1
+  # Prefer fenced or table cells and simple domain tokens; ignore markdown headers.
+  grep -Eio '([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}|(\*\.)?([a-z0-9-]+\.)+[a-z]{2,}' "$scope_file" 2>/dev/null \
+    | sed 's/^\*\.//' \
+    | tr '[:upper:]' '[:lower:]' \
+    | sort -u
+}
+
+# Return 0 if target host is allowed by active scope (or no scope is active).
+# Wildcard semantics: allowlisted "example.com" matches "a.example.com".
+scope_allows_target() {
+  local target="${1:-}"
+  [[ -n "$target" ]] || return 1
+  target="$(echo "$target" | tr '[:upper:]' '[:lower:]' | sed 's#^https\?://##; s#/.*##; s#:.*##')"
+
+  local scope_file
+  if ! scope_file="$(active_scope_file)"; then
+    # No active scope → allow (with optional warn from caller)
+    return 0
+  fi
+
+  local entry
+  while IFS= read -r entry; do
+    [[ -z "$entry" ]] && continue
+    entry="$(echo "$entry" | tr '[:upper:]' '[:lower:]' | sed 's/^\*\.//')"
+    if [[ "$target" == "$entry" || "$target" == *".$entry" ]]; then
+      return 0
+    fi
+  done < <(scope_allowlist "$scope_file")
+
+  return 1
+}
+
+# Hard stop if active scope exists and target is not listed.
+require_in_scope() {
+  local target="${1:-}"
+  require_target "$target"
+
+  local scope_file
+  if ! scope_file="$(active_scope_file)"; then
+    if [[ "${BB_REQUIRE_SCOPE:-0}" == "1" ]]; then
+      err "No active scope. Run: bb scope use <engagement-slug>  (or set BB_SCOPE_FILE)"
+      err "Or create one: bb scope new <slug>"
+      exit 2
+    fi
+    warn "No active scope file — proceeding without allowlist check (set BB_REQUIRE_SCOPE=1 to enforce)"
+    return 0
+  fi
+
+  if scope_allows_target "$target"; then
+    log "Scope OK: $target (from $scope_file)"
+    return 0
+  fi
+
+  err "Target '$target' is NOT in active scope: $scope_file"
+  err "Update scope.md in-scope assets, or: bb scope clear"
+  exit 3
 }

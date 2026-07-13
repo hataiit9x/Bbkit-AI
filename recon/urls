@@ -3,6 +3,7 @@ set -euo pipefail
 source "$BB_ROOT/lib/common.sh"
 require_target "${1:-}"
 target="$1"
+require_in_scope "$target"
 base="$BB_OUTPUT/$target"
 alive="$base/alive/alive.txt"
 out="$base/urls"

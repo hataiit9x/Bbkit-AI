@@ -3,6 +3,7 @@ set -euo pipefail
 source "$BB_ROOT/lib/common.sh"
 require_target "${1:-}"
 target="$1"
+require_in_scope "$target"
 base="$BB_OUTPUT/$target"
 alive="$base/alive/alive.txt"
 out="$base/nuclei"
@@ -11,7 +12,9 @@ mkdir -p "$out"
 [[ -f "$alive" ]] || "$BB_ROOT/recon/alive" "$target"
 
 if need_cmd nuclei; then
-  nuclei -l "$alive" -severity critical,high,medium,low -o "$out/nuclei.txt" || true
+  # Prefer critical/high for noisy programs; override with BB_NUCLEI_SEVERITY
+  sev="${BB_NUCLEI_SEVERITY:-critical,high,medium}"
+  nuclei -l "$alive" -severity "$sev" -o "$out/nuclei.txt" || true
 fi
 
 log "Saved: $out/nuclei.txt"

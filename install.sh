@@ -9,8 +9,8 @@ BB_AI_DST="$BB_ROOT/ai/bug-bounty"
 
 mkdir -p "$BB_ROOT" "$BB_BIN" "$BB_ROOT/logs" "$BB_ROOT/output" "$BB_ROOT/tools" "$BB_ROOT/ai"
 mkdir -p "$BB_ROOT/wordlists"/{dns,content,params,api,resolvers}
-mkdir -p "$BB_ROOT/templates"/{nuclei,gf}
-mkdir -p "$BB_ROOT/ref"
+mkdir -p "$BB_ROOT/templates"/{nuclei,gf,engagement}
+mkdir -p "$BB_ROOT/ref" "$BB_ROOT/engagements" "$BB_ROOT/skills"
 
 echo "[+] Installing BBKit to $BB_ROOT"
 
@@ -56,8 +56,16 @@ cp -R "$BBKIT_SRC/plugins" "$BB_ROOT/"
 cp -R "$BBKIT_SRC/recon" "$BB_ROOT/"
 cp -R "$BBKIT_SRC/config" "$BB_ROOT/"
 cp -R "$BBKIT_SRC/ref" "$BB_ROOT/"
+if [[ -d "$BBKIT_SRC/skills" ]]; then
+  cp -R "$BBKIT_SRC/skills" "$BB_ROOT/"
+fi
+if [[ -d "$BBKIT_SRC/templates/engagement" ]]; then
+  cp -R "$BBKIT_SRC/templates/engagement" "$BB_ROOT/templates/"
+fi
 cp "$BBKIT_SRC/bin/bb" "$BB_BIN/bb"
 chmod +x "$BB_BIN/bb" "$BB_ROOT"/recon/* || true
+# Drop Python caches if any were copied
+find "$BB_ROOT/lib" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 
 if [[ -d "$BB_AI_SRC" ]]; then
   rm -rf "$BB_AI_DST"
@@ -87,3 +95,7 @@ echo "[+] Done."
 echo "Run:"
 echo "  source ~/.bashrc"
 echo "  bb doctor"
+echo "  bb scope new my-program   # edit engagements/.../scope.md"
+echo "  bb scope use my-program"
+echo "  bb full in-scope.example.com"
+echo "  bb ai sync                # Claude + web3 + bbkit skill"

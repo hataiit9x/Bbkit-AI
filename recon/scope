@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# Manage authorized engagement scope for BBKit.
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+
+usage() {
+  cat <<'EOF'
+bb scope — authorized engagement scope
+
+  bb scope status              Show active scope file + allowlist
+  bb scope new <slug>          Create engagements/<slug>/ from templates
+  bb scope use <slug>          Activate engagements/<slug>/scope.md
+  bb scope use-file <path>     Activate an arbitrary scope.md
+  bb scope check <host|url>    Test whether a host is in active scope
+  bb scope list                List engagement folders
+  bb scope clear               Clear active scope pointer
+  bb scope show                Print active scope.md path (or empty)
+
+Env:
+  BB_ENGAGEMENTS   default $BB_ROOT/engagements
+  BB_ACTIVE_SCOPE  pointer file $BB_ROOT/.active-scope
+  BB_SCOPE_FILE    override active scope for this shell
+  BB_REQUIRE_SCOPE=1  make recon refuse targets without/out of scope
+EOF
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "$cmd" in
+  help|-h|--help)
+    usage
+    ;;
+
+  list)
+    mkdir -p "$BB_ENGAGEMENTS"
+    if compgen -G "$BB_ENGAGEMENTS/*/" >/dev/null 2>&1; then
+      for d in "$BB_ENGAGEMENTS"/*/; do
+        base="$(basename "$d")"
+        if [[ -f "$d/scope.md" ]]; then
+          echo "  $base  (scope.md)"
+        else
+          echo "  $base"
+        fi
+      done
+    else
+      echo "(no engagements yet — try: bb scope new demo-program)"
+    fi
+    ;;
+
+  new)
+    slug="${1:-}"
+    [[ -n "$slug" ]] || { err "usage: bb scope new <slug>"; exit 1; }
+    dest="$BB_ENGAGEMENTS/$slug"
+    mkdir -p "$dest/findings" "$dest/poc" "$dest/.private"
+    src_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    # Prefer installed templates, then source tree templates
+    for base in "$BB_ROOT/templates/engagement" "$src_root/templates/engagement"; do
+      if [[ -f "$base/scope.md" ]]; then
+        cp -n "$base/scope.md" "$dest/scope.md" 2>/dev/null || cp "$base/scope.md" "$dest/scope.md"
+        cp -n "$base/engagement.md" "$dest/engagement.md" 2>/dev/null || cp "$base/engagement.md" "$dest/engagement.md"
+        cp -n "$base/notes.md" "$dest/notes.md" 2>/dev/null || cp "$base/notes.md" "$dest/notes.md"
+        break
+      fi
+    done
+    [[ -f "$dest/scope.md" ]] || {
+      cat >"$dest/scope.md" <<EOF
+# Scope — $slug
+
+## Program
+| Field | Value |
+|-------|--------|
+| Program name | |
+| Platform | HackerOne / Bugcrowd / Intigriti / Immunefi / private |
+| Policy URL | |
+
+## Authorization
+- [ ] I will test only in-scope assets under this program.
+
+## In-scope assets
+| Asset | Type | Notes |
+|-------|------|--------|
+| example.com | domain | replace me |
+
+## Out of scope
+|
+EOF
+    }
+    echo "# private — never commit" >"$dest/.private/README.md"
+    log "Created $dest"
+    log "Edit $dest/scope.md then: bb scope use $slug"
+    ;;
+
+  use)
+    slug="${1:-}"
+    [[ -n "$slug" ]] || { err "usage: bb scope use <slug>"; exit 1; }
+    f="$BB_ENGAGEMENTS/$slug/scope.md"
+    [[ -f "$f" ]] || { err "missing $f — run: bb scope new $slug"; exit 1; }
+    echo "$f" >"$BB_ACTIVE_SCOPE"
+    log "Active scope → $f"
+    "$0" status
+    ;;
+
+  use-file)
+    f="${1:-}"
+    [[ -n "$f" && -f "$f" ]] || { err "usage: bb scope use-file <path-to-scope.md>"; exit 1; }
+    # resolve absolute
+    f="$(cd "$(dirname "$f")" && pwd)/$(basename "$f")"
+    echo "$f" >"$BB_ACTIVE_SCOPE"
+    log "Active scope → $f"
+    ;;
+
+  clear)
+    rm -f "$BB_ACTIVE_SCOPE"
+    log "Active scope cleared"
+    ;;
+
+  show)
+    active_scope_file || true
+    ;;
+
+  check)
+    host="${1:-}"
+    require_target "$host"
+    if ! active_scope_file >/dev/null; then
+      warn "No active scope — would ALLOW (no allowlist)"
+      exit 0
+    fi
+    if scope_allows_target "$host"; then
+      log "ALLOW: $host"
+      exit 0
+    else
+      err "DENY: $host"
+      exit 3
+    fi
+    ;;
+
+  status|*)
+    if [[ "$cmd" != "status" && "$cmd" != "" ]]; then
+      # fall through unknown to status only if status
+      if [[ "$cmd" != "status" ]]; then
+        err "Unknown: $cmd"
+        usage
+        exit 1
+      fi
+    fi
+    echo "BBKit Scope"
+    echo "==========="
+    echo "Engagements: $BB_ENGAGEMENTS"
+    if sf="$(active_scope_file)"; then
+      echo "Active:      $sf"
+      echo ""
+      echo "Allowlist (parsed domains):"
+      scope_allowlist "$sf" | sed 's/^/  - /' || echo "  (none parsed — add domains to scope.md)"
+    else
+      echo "Active:      (none)"
+      echo "Tip: bb scope new my-program && bb scope use my-program"
+    fi
+    echo ""
+    echo "BB_REQUIRE_SCOPE=${BB_REQUIRE_SCOPE:-0}  (set to 1 to hard-enforce on recon)"
+    ;;
+esac

@@ -3,6 +3,20 @@ set -euo pipefail
 source "$BB_ROOT/lib/common.sh"
 export PATH="$PATH:/usr/local/go/bin:$HOME/go/bin:$BB_BIN:$HOME/.local/bin:$HOME/.cargo/bin"
 
+bbkit_ver="0.2.0"
+for vf in "$BB_ROOT/VERSION" "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/VERSION"; do
+  if [[ -f "$vf" ]]; then
+    bbkit_ver="$(tr -d ' \r\n' <"$vf")"
+    break
+  fi
+done
+
+echo "BBKit $bbkit_ver"
+echo "BB_ROOT=$BB_ROOT"
+echo ""
+echo "Tool versions"
+echo "-------------"
+
 for t in subfinder httpx dnsx katana nuclei naabu ffuf gau waybackurls arjun sqlmap nmap; do
   echo "==== $t ===="
   if need_cmd "$t"; then

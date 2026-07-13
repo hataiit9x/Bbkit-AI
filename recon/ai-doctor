@@ -31,6 +31,18 @@ check_path ".agents skill bug-bounty" "$agents_root/skills/bug-bounty/SKILL.md"
 check_path "Factory skills root" "$factory_root/skills"
 check_path "Factory xss skill" "$factory_root/skills/xss/SKILL.md"
 check_path "Factory web3 start" "$factory_root/skills/web3-start-here/SKILL.md"
+check_path "bbkit orchestrator (Claude)" "$claude_root/skills/bbkit/SKILL.md"
+check_path "Web3 install path" "$BB_WEB3_ROOT"
+check_path "Engagements dir" "$BB_ENGAGEMENTS"
+
+echo ""
+echo "Scope"
+echo "-----"
+if sf="$(active_scope_file 2>/dev/null)"; then
+  echo "✓ active-scope: $sf"
+else
+  echo "✗ active-scope (run: bb scope new <slug> && bb scope use <slug>)"
+fi
 
 echo ""
 echo "Core runtime"

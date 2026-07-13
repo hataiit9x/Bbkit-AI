@@ -16,6 +16,7 @@ BBKit commands:
   bb doctor
   bb update
   bb version
+  bb scope …                 # authorized engagement scope
   bb bounty <program-url>
   bb browser <url>
   bb ai help
@@ -28,7 +29,7 @@ BBKit commands:
   bb scan-cves [args...]
   bb arsenal [tool]
 
-Recon:
+Recon (scope-checked when active):
   bb subs <domain>
   bb alive <domain>
   bb urls <domain>
@@ -40,8 +41,14 @@ Recon:
 
 Paths:
   $BB_ROOT/output/<domain>/
+  $BB_ROOT/engagements/
   $BB_ROOT/ai/bug-bounty/
+  $BB_ROOT/ai/web3-skills/
+  $BB_ROOT/skills/bbkit/
 EOF
+    ;;
+  scope)
+    "$BB_ROOT/recon/scope" "$@"
     ;;
   bounty)
     "$BB_ROOT/recon/bounty" "$@"
@@ -66,7 +73,7 @@ EOF
         cat <<'EOF'
 BBKit AI commands:
 
-  bb ai sync                 Sync Claude Code + .agents + Factory Droid assets
+  bb ai sync                 Sync Claude/Codex/.agents + web3 skills + bbkit skill
   bb ai doctor               Check AI bundle and harness paths
   bb ai run <tool> [args...] Run a bundled Claude Bug Bounty tool from BBKit
 EOF

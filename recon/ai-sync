@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Sync AI skills/commands into Claude Code, Codex, .agents, Factory Droid.
+# Also ensures web3 skill pack and bbkit orchestrator are available.
 set -euo pipefail
 source "$BB_ROOT/lib/common.sh"
 
@@ -6,10 +8,38 @@ claude_root="${BB_CLAUDE_ROOT:-$HOME/.claude}"
 codex_root="${BB_CODEX_ROOT:-$HOME/.codex}"
 agents_root="${BB_AGENTS_ROOT:-$HOME/.agents}"
 factory_root="${BB_FACTORY_ROOT:-$HOME/.factory}"
-factory_skill_roots=(
-  "$BB_REF/strix-skills"
-  "$BB_REF/web3-bug-bounty-hunting-ai-skills"
-)
+
+WEB3_URL="${BB_WEB3_URL:-https://github.com/shuvonsec/web3-bug-bounty-hunting-ai-skills.git}"
+# Prefer installed web3, then source-tree ref, then clone into BB_WEB3_ROOT
+ensure_web3() {
+  if [[ -d "$BB_WEB3_ROOT/web3-bug-classes" || -d "$BB_WEB3_ROOT/web3-start-here" ]]; then
+    echo "$BB_WEB3_ROOT"
+    return 0
+  fi
+  if [[ -d "$BB_REF/web3-bug-bounty-hunting-ai-skills/web3-bug-classes" ]]; then
+    echo "$BB_REF/web3-bug-bounty-hunting-ai-skills"
+    return 0
+  fi
+  # Source checkout (dev)
+  local src_try
+  for src_try in \
+    "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/ref/web3-bug-bounty-hunting-ai-skills" \
+    "$HOME/Documents/MyProject/Bbkit-AI/ref/web3-bug-bounty-hunting-ai-skills"; do
+    if [[ -d "$src_try/web3-bug-classes" ]]; then
+      echo "$src_try"
+      return 0
+    fi
+  done
+  log "Cloning web3 skills → $BB_WEB3_ROOT"
+  mkdir -p "$(dirname "$BB_WEB3_ROOT")"
+  if [[ -d "$BB_WEB3_ROOT/.git" ]]; then
+    git -C "$BB_WEB3_ROOT" pull --ff-only 2>/dev/null || true
+  else
+    rm -rf "$BB_WEB3_ROOT"
+    git clone --depth 1 "$WEB3_URL" "$BB_WEB3_ROOT"
+  fi
+  echo "$BB_WEB3_ROOT"
+}
 
 copy_named_dirs() {
   local src_root="$1"
@@ -34,6 +64,7 @@ copy_named_files() {
   local dest_root="$2"
   local label="$3"
   mkdir -p "$dest_root"
+  # shellcheck disable=SC2086
   for item in $src_glob; do
     [[ -f "$item" ]] || continue
     local name
@@ -43,40 +74,77 @@ copy_named_files() {
   done
 }
 
-[[ -d "$BB_AI_ROOT" ]] || {
-  err "AI bundle not found at $BB_AI_ROOT"
-  exit 1
-}
-
 echo "BBKit AI Sync"
 echo "============="
 
-copy_named_dirs "$BB_AI_ROOT/skills" "$claude_root/skills" "Claude skill"
-copy_named_files "$BB_AI_ROOT/commands/*.md" "$claude_root/commands" "Claude command"
-copy_named_files "$BB_AI_ROOT/agents/*.md" "$claude_root/agents" "Claude agent"
-copy_named_dirs "$BB_AI_ROOT/skills" "$codex_root/skills" "Codex skill"
-copy_named_files "$BB_AI_ROOT/commands/*.md" "$codex_root/commands" "Codex command"
-copy_named_dirs "$BB_AI_ROOT/skills" "$agents_root/skills" "Shared agent skill"
+# --- Web2 AI bundle (claude-bug-bounty install path) ---
+if [[ -d "$BB_AI_ROOT" ]]; then
+  copy_named_dirs "$BB_AI_ROOT/skills" "$claude_root/skills" "Claude skill"
+  copy_named_files "$BB_AI_ROOT/commands/*.md" "$claude_root/commands" "Claude command"
+  copy_named_files "$BB_AI_ROOT/agents/*.md" "$claude_root/agents" "Claude agent"
+  copy_named_dirs "$BB_AI_ROOT/skills" "$codex_root/skills" "Codex skill"
+  copy_named_files "$BB_AI_ROOT/commands/*.md" "$codex_root/commands" "Codex command"
+  copy_named_dirs "$BB_AI_ROOT/skills" "$agents_root/skills" "Shared agent skill"
 
-mkdir -p "$claude_root/bbkit"
-for extra in rules hooks mcp memory web3; do
-  if [[ -d "$BB_AI_ROOT/$extra" ]]; then
-    rm -rf "$claude_root/bbkit/$extra"
-    mkdir -p "$claude_root/bbkit/$extra"
-    cp -R "$BB_AI_ROOT/$extra"/. "$claude_root/bbkit/$extra/"
-    log "Claude asset: bbkit/$extra"
+  mkdir -p "$claude_root/bbkit"
+  for extra in rules hooks mcp memory web3; do
+    if [[ -d "$BB_AI_ROOT/$extra" ]]; then
+      rm -rf "$claude_root/bbkit/$extra"
+      mkdir -p "$claude_root/bbkit/$extra"
+      cp -R "$BB_AI_ROOT/$extra"/. "$claude_root/bbkit/$extra/"
+      log "Claude asset: bbkit/$extra"
+    fi
+  done
+  for extra_file in AGENTS.md CLAUDE.md OPENCODE.md SKILL.md README.md config.example.json; do
+    if [[ -f "$BB_AI_ROOT/$extra_file" ]]; then
+      cp "$BB_AI_ROOT/$extra_file" "$claude_root/bbkit/$extra_file"
+      log "Claude asset: bbkit/$extra_file"
+    fi
+  done
+else
+  warn "AI bundle missing at $BB_AI_ROOT — run install.sh first for full hunt tools"
+fi
+
+# --- BBKit thin orchestrator (this repo) ---
+bbkit_src=""
+for try in \
+  "$BB_ROOT/skills/bbkit" \
+  "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/skills/bbkit"; do
+  if [[ -f "$try/SKILL.md" ]]; then
+    bbkit_src="$try"
+    break
   fi
 done
-for extra_file in AGENTS.md CLAUDE.md OPENCODE.md SKILL.md README.md config.example.json; do
-  if [[ -f "$BB_AI_ROOT/$extra_file" ]]; then
-    cp "$BB_AI_ROOT/$extra_file" "$claude_root/bbkit/$extra_file"
-    log "Claude asset: bbkit/$extra_file"
-  fi
-done
+if [[ -n "$bbkit_src" ]]; then
+  for dest in "$claude_root/skills/bbkit" "$codex_root/skills/bbkit" "$agents_root/skills/bbkit" "$factory_root/skills/bbkit"; do
+    rm -rf "$dest"
+    mkdir -p "$dest"
+    cp -R "$bbkit_src"/. "$dest/"
+    log "bbkit orchestrator → $dest"
+  done
+fi
 
-for skill_root in "${factory_skill_roots[@]}"; do
-  copy_named_dirs "$skill_root" "$factory_root/skills" "Factory skill"
-done
+# --- Web3 skills pack ---
+web3_root="$(ensure_web3)"
+if [[ -d "$web3_root" ]]; then
+  copy_named_dirs "$web3_root" "$factory_root/skills" "Factory web3 skill"
+  copy_named_dirs "$web3_root" "$claude_root/skills" "Claude web3 skill"
+  copy_named_dirs "$web3_root" "$agents_root/skills" "Shared web3 skill"
+  # Keep a stable install path for agent prompts
+  if [[ "$web3_root" != "$BB_WEB3_ROOT" ]]; then
+    mkdir -p "$BB_WEB3_ROOT"
+    # lightweight pointer file
+    echo "$web3_root" >"$BB_WEB3_ROOT/.source-path"
+  fi
+  log "Web3 skills root: $web3_root"
+else
+  warn "Web3 skills not available"
+fi
+
+# Optional strix-skills if present
+if [[ -d "$BB_REF/strix-skills" ]]; then
+  copy_named_dirs "$BB_REF/strix-skills" "$factory_root/skills" "Factory strix skill"
+fi
 
 echo ""
 echo "Claude Code:   $claude_root"
@@ -84,3 +152,5 @@ echo "Codex:         $codex_root"
 echo ".agents:       $agents_root"
 echo "Factory Droid: $factory_root"
 echo "AI bundle:     $BB_AI_ROOT"
+echo "Web3:          $web3_root"
+echo "bbkit skill:   ${bbkit_src:-missing}"
