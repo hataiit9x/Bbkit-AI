@@ -1,16 +1,131 @@
 #!/usr/bin/env bash
+# Full recon pipeline with optional passive-only and severity controls.
 set -euo pipefail
 source "$BB_ROOT/lib/common.sh"
-require_target "${1:-}"
-target="$1"
+
+usage() {
+  cat <<'EOF'
+bb full — recon pipeline
+
+Usage:
+  bb full [options] <domain>
+
+Options:
+  --passive-only     Skip port scan and nuclei (subs → alive → urls → js → report)
+  --no-ports         Skip naabu/port stage
+  --no-nuclei        Skip nuclei stage
+  --severity LIST    Nuclei severities (default: env BB_NUCLEI_SEVERITY or critical,high,medium)
+  --rate N           Soft rate hint for tools (export BB_RATE)
+  -h, --help         This help
+
+Examples:
+  bb full example.com
+  bb full --passive-only example.com
+  bb full --no-ports --severity critical,high example.com
+EOF
+}
+
+passive_only=0
+do_ports=1
+do_nuclei=1
+severity="${BB_NUCLEI_SEVERITY:-critical,high,medium}"
+rate="${BB_RATE:-}"
+
+target=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --passive-only)
+      passive_only=1
+      do_ports=0
+      do_nuclei=0
+      shift
+      ;;
+    --no-ports)
+      do_ports=0
+      shift
+      ;;
+    --no-nuclei)
+      do_nuclei=0
+      shift
+      ;;
+    --severity)
+      severity="${2:-}"
+      [[ -n "$severity" ]] || { err "--severity needs a value"; exit 1; }
+      shift 2
+      ;;
+    --rate)
+      rate="${2:-}"
+      [[ -n "$rate" ]] || { err "--rate needs a value"; exit 1; }
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      err "Unknown option: $1"
+      usage
+      exit 1
+      ;;
+    *)
+      if [[ -z "$target" ]]; then
+        target="$1"
+        shift
+      else
+        err "Unexpected argument: $1"
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+# Allow: bb full example.com --passive-only (flags after target)
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --passive-only) passive_only=1; do_ports=0; do_nuclei=0; shift ;;
+    --no-ports) do_ports=0; shift ;;
+    --no-nuclei) do_nuclei=0; shift ;;
+    --severity) severity="${2:-}"; shift 2 ;;
+    --rate) rate="${2:-}"; shift 2 ;;
+    *) err "Unexpected: $1"; exit 1 ;;
+  esac
+done
+
+require_target "$target"
 require_in_scope "$target"
+
+export BB_NUCLEI_SEVERITY="$severity"
+if [[ -n "$rate" ]]; then
+  export BB_RATE="$rate"
+  log "Rate hint BB_RATE=$rate"
+fi
+
+if [[ "$passive_only" -eq 1 ]]; then
+  log "Mode: passive-only (no ports / nuclei)"
+fi
 
 "$BB_ROOT/recon/subs" "$target"
 "$BB_ROOT/recon/alive" "$target"
 "$BB_ROOT/recon/urls" "$target"
 "$BB_ROOT/recon/js" "$target"
-"$BB_ROOT/recon/port" "$target"
-"$BB_ROOT/recon/nuclei" "$target"
+
+if [[ "$do_ports" -eq 1 ]]; then
+  "$BB_ROOT/recon/port" "$target"
+else
+  log "Skip ports"
+fi
+
+if [[ "$do_nuclei" -eq 1 ]]; then
+  "$BB_ROOT/recon/nuclei" "$target"
+else
+  log "Skip nuclei"
+fi
+
 "$BB_ROOT/recon/report" "$target"
 
 log "Full recon completed: $BB_OUTPUT/$target"
+log "Flags: passive_only=$passive_only ports=$do_ports nuclei=$do_nuclei severity=$severity"

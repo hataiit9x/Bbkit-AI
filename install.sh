@@ -62,6 +62,11 @@ fi
 if [[ -d "$BBKIT_SRC/templates/engagement" ]]; then
   cp -R "$BBKIT_SRC/templates/engagement" "$BB_ROOT/templates/"
 fi
+if [[ -d "$BBKIT_SRC/scripts" ]]; then
+  mkdir -p "$BB_ROOT/scripts"
+  cp -R "$BBKIT_SRC/scripts/." "$BB_ROOT/scripts/" || true
+  chmod +x "$BB_ROOT"/scripts/*.sh 2>/dev/null || true
+fi
 cp "$BBKIT_SRC/bin/bb" "$BB_BIN/bb"
 chmod +x "$BB_BIN/bb" "$BB_ROOT"/recon/* || true
 # Drop Python caches if any were copied

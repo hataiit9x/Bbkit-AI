@@ -12,4 +12,20 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Run shellcheck
-        run: shellcheck install.sh bin/bb recon/* lib/*.sh || true
+        run: |
+          set -euo pipefail
+          # SC1091: sourced files not present in CI path layout
+          # SC2155: declare and assign separately (style)
+          # SC2086: intentional word-split in some plugin globs
+          shellcheck -x \
+            -e SC1091,SC2155,SC2086,SC2016 \
+            install.sh \
+            uninstall.sh \
+            update.sh \
+            doctor.sh \
+            version.sh \
+            bin/bb \
+            lib/common.sh \
+            recon/* \
+            scripts/*.sh \
+            plugins/*.sh

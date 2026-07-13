@@ -4,7 +4,7 @@
 
 > Use only on assets you own or have **explicit permission** to test.
 
-**Version:** see `VERSION` (current: **0.2.0**)
+**Version:** see `VERSION` (current: **0.3.0**)
 
 ---
 
@@ -43,7 +43,9 @@ bb scope use acme-h1
 bb scope check api.acme.com
 
 bb full acme.com                 # subs → alive → urls → js → ports → nuclei → report
-# output: ~/BugBounty/output/acme.com/
+bb full --passive-only acme.com  # no ports / nuclei
+bb full --severity critical,high --rate 200 acme.com
+# output: ~/BugBounty/output/acme.com/  (+ report.html, report.md)
 ```
 
 Enforce scope hard:

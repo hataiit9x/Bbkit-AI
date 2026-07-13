@@ -3,7 +3,7 @@ set -euo pipefail
 source "$BB_ROOT/lib/common.sh"
 export PATH="$PATH:/usr/local/go/bin:$HOME/go/bin:$BB_BIN:$HOME/.local/bin:$HOME/.cargo/bin"
 
-bbkit_ver="0.2.0"
+bbkit_ver="0.3.0"
 for vf in "$BB_ROOT/VERSION" "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/VERSION"; do
   if [[ -f "$vf" ]]; then
     bbkit_ver="$(tr -d ' \r\n' <"$vf")"

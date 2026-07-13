@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HTML recon report with scope metadata + nuclei/findings stubs.
 set -euo pipefail
 source "$BB_ROOT/lib/common.sh"
 require_target "${1:-}"
@@ -8,7 +9,12 @@ base="$BB_OUTPUT/$target"
 report="$base/report.html"
 mkdir -p "$base"
 
-count_file() { [[ -f "$1" ]] && wc -l < "$1" || echo 0; }
+count_file() { [[ -f "$1" ]] && wc -l <"$1" | tr -d ' ' || echo 0; }
+
+html_escape() {
+  # minimal escape for embedding in HTML
+  sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
+}
 
 subs=$(count_file "$base/subs/resolved.txt")
 alive=$(count_file "$base/alive/alive.txt")
@@ -16,37 +22,145 @@ urls=$(count_file "$base/urls/all_urls.txt")
 js=$(count_file "$base/js/all_js.txt")
 params=$(count_file "$base/urls/params.txt")
 nuclei=$(count_file "$base/nuclei/nuclei.txt")
+ports=$(count_file "$base/ports/naabu.txt")
 
-cat > "$report" <<EOF
+# Scope block
+scope_html="<em>No active scope file</em>"
+scope_path=""
+if scope_path="$(active_scope_file 2>/dev/null)"; then
+  allow_list="$(scope_allowlist "$scope_path" | head -n 40 | html_escape || true)"
+  scope_html="<p><strong>File:</strong> <code>$(echo "$scope_path" | html_escape)</code></p>"
+  scope_html+="<p><strong>Allowlist (sample):</strong></p><pre>$(echo "$allow_list")</pre>"
+fi
+
+# Sample alive hosts
+alive_sample=""
+if [[ -f "$base/alive/alive.txt" ]]; then
+  alive_sample="$(head -n 30 "$base/alive/alive.txt" | html_escape)"
+fi
+
+# Nuclei findings stubs (first 50 lines)
+findings_html="<em>No nuclei results</em>"
+if [[ -f "$base/nuclei/nuclei.txt" && -s "$base/nuclei/nuclei.txt" ]]; then
+  findings_html="<pre>$(head -n 50 "$base/nuclei/nuclei.txt" | html_escape)</pre>"
+  if [[ "$(count_file "$base/nuclei/nuclei.txt")" -gt 50 ]]; then
+    findings_html+="<p><em>… truncated; see nuclei/nuclei.txt</em></p>"
+  fi
+fi
+
+# Manual findings stubs (engagement notes / findings dir)
+manual_html="<em>None yet — add under engagements/…/findings/ or notes.md</em>"
+manual_bits=""
+if [[ -n "$scope_path" ]]; then
+  eng_dir="$(dirname "$scope_path")"
+  if [[ -d "$eng_dir/findings" ]]; then
+    for f in "$eng_dir/findings"/*; do
+      [[ -f "$f" ]] || continue
+      [[ "$(basename "$f")" == .gitkeep ]] && continue
+      manual_bits+="$(basename "$f")"$'\n'
+    done
+  fi
+  if [[ -f "$eng_dir/notes.md" ]]; then
+    manual_bits+="notes.md present"$'\n'
+  fi
+fi
+if [[ -n "$manual_bits" ]]; then
+  manual_html="<pre>$(echo "$manual_bits" | html_escape)</pre>"
+fi
+
+generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date)"
+
+cat >"$report" <<EOF
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BBKit Report - $target</title>
 <style>
-body{font-family:Arial,sans-serif;margin:40px;background:#f7f7f7}
-.card{background:white;padding:20px;margin:12px 0;border-radius:10px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-.num{font-size:32px;font-weight:bold}
-code{background:#eee;padding:2px 6px;border-radius:4px}
+:root { --bg:#0f1419; --card:#1a2332; --text:#e7ecf3; --muted:#8b9bb4; --accent:#3d8bfd; --ok:#3dd68c; }
+body{font-family:ui-sans-serif,system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:32px;background:var(--bg);color:var(--text)}
+h1{margin:0 0 8px;font-size:1.6rem}
+h2{margin:0 0 12px;font-size:1.1rem;color:var(--accent)}
+.meta{color:var(--muted);margin-bottom:24px;font-size:.9rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.card{background:var(--card);padding:16px 18px;border-radius:12px;border:1px solid #2a3548}
+.num{font-size:1.8rem;font-weight:700;color:var(--ok)}
+label{display:block;color:var(--muted);font-size:.8rem;margin-bottom:4px}
+code,pre{background:#0c1017;padding:8px 10px;border-radius:8px;font-size:.85rem;overflow:auto}
+pre{white-space:pre-wrap;word-break:break-word;max-height:320px}
+a{color:var(--accent)}
+.footer{margin-top:28px;color:var(--muted);font-size:.8rem}
 </style>
 </head>
 <body>
-<h1>BBKit Report: $target</h1>
+<h1>BBKit Report: $(echo "$target" | html_escape)</h1>
+<p class="meta">Generated <code>$generated_at</code> · BB_ROOT <code>$(echo "$BB_ROOT" | html_escape)</code></p>
+
 <div class="grid">
-<div class="card"><div>Subdomains</div><div class="num">$subs</div></div>
-<div class="card"><div>Alive</div><div class="num">$alive</div></div>
-<div class="card"><div>URLs</div><div class="num">$urls</div></div>
-<div class="card"><div>JS</div><div class="num">$js</div></div>
-<div class="card"><div>Params</div><div class="num">$params</div></div>
-<div class="card"><div>Nuclei</div><div class="num">$nuclei</div></div>
+  <div class="card"><label>Subdomains</label><div class="num">$subs</div></div>
+  <div class="card"><label>Alive</label><div class="num">$alive</div></div>
+  <div class="card"><label>URLs</label><div class="num">$urls</div></div>
+  <div class="card"><label>JS</label><div class="num">$js</div></div>
+  <div class="card"><label>Params</label><div class="num">$params</div></div>
+  <div class="card"><label>Ports</label><div class="num">$ports</div></div>
+  <div class="card"><label>Nuclei hits</label><div class="num">$nuclei</div></div>
 </div>
+
+<div class="card" style="margin-bottom:16px">
+  <h2>Scope</h2>
+  $scope_html
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h2>Alive hosts (sample)</h2>
+  <pre>${alive_sample:-<em>none</em>}</pre>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h2>Findings stubs — Nuclei</h2>
+  $findings_html
+  <p class="meta">Treat as leads; validate with <code>bb validate</code> / 7Q gate before reporting.</p>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <h2>Findings stubs — Manual / engagement</h2>
+  $manual_html
+</div>
+
 <div class="card">
-<h2>Output Path</h2>
-<code>$base</code>
+  <h2>Output path</h2>
+  <code>$(echo "$base" | html_escape)</code>
+  <ul>
+    <li><code>subs/resolved.txt</code></li>
+    <li><code>alive/alive.txt</code></li>
+    <li><code>urls/</code> · <code>js/</code> · <code>ports/</code> · <code>nuclei/nuclei.txt</code></li>
+  </ul>
 </div>
+
+<p class="footer">BBKit · authorized testing only · HTML summary for recon output</p>
 </body>
 </html>
 EOF
 
+# Also write a short markdown companion for AI agents
+md="$base/report.md"
+{
+  echo "# BBKit recon summary: $target"
+  echo
+  echo "- Generated: $generated_at"
+  echo "- Scope: ${scope_path:-none}"
+  echo "- Subdomains: $subs | Alive: $alive | URLs: $urls | JS: $js | Params: $params | Ports: $ports | Nuclei: $nuclei"
+  echo
+  echo "## Nuclei (head)"
+  echo '```'
+  head -n 30 "$base/nuclei/nuclei.txt" 2>/dev/null || echo "(none)"
+  echo '```'
+  echo
+  echo "## Next"
+  echo "- Review alive hosts and nuclei leads"
+  echo "- Use bbkit skill mode validate before any submission"
+} >"$md"
+
 log "Report: $report"
+log "Markdown: $md"

@@ -37,7 +37,9 @@ Recon (scope-checked when active):
   bb port <domain>
   bb nuclei <domain>
   bb report <domain>
-  bb full <domain>
+  bb full [options] <domain>
+      --passive-only | --no-ports | --no-nuclei
+      --severity critical,high | --rate N
 
 Paths:
   $BB_ROOT/output/<domain>/

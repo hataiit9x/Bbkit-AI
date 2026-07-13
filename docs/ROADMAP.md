@@ -13,13 +13,16 @@
 - README + hygiene (gitignore, no pycache)
 - Safer nuclei severity default
 
-## v0.3 (next)
+## v0.3 (current)
 - HTML report richer (scope metadata, findings stubs)
-- Optional sparse vendor for claude-bug-bounty (drop site/logo from git)
-- `bb full --passive-only` / rate flags wired to config.yaml
-- Smoke tests in CI beyond shellcheck
+- Sparse vendor for claude-bug-bounty (no site/logo/demo/tests/wordlists)
+- `bb full --passive-only` / rate / severity flags
+- Smoke tests in CI + stricter shellcheck
+
+## v0.4 (next)
+- Wire more knobs from `config/config.yaml`
+- Optional dashboard
+- Docker image for VPS
 
 ## v1.0
 - Stable public release
-- Dashboard (optional)
-- Docker image for VPS

@@ -1,0 +1,52 @@
+name: smoke
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scope-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare fake BB_ROOT
+        run: |
+          set -euo pipefail
+          export BB_ROOT="${RUNNER_TEMP}/bbkit-home"
+          mkdir -p "$BB_ROOT/bin"
+          cp -R lib plugins recon config skills templates bin "$BB_ROOT/"
+          cp bin/bb "$BB_ROOT/bin/bb"
+          chmod +x "$BB_ROOT/bin/bb" "$BB_ROOT"/recon/*
+          echo "BB_ROOT=$BB_ROOT" >> "$GITHUB_ENV"
+          echo "$BB_ROOT/bin" >> "$GITHUB_PATH"
+
+      - name: bb help
+        run: bb help | grep -q "bb scope"
+
+      - name: bb scope new/use/check
+        run: |
+          set -euo pipefail
+          bb scope new ci-demo
+          # ensure domain is in scope file
+          printf '\n| ci-demo.example | domain | |\n' >> "$BB_ROOT/engagements/ci-demo/scope.md"
+          echo "ci-demo.example" >> "$BB_ROOT/engagements/ci-demo/scope.md"
+          bb scope use ci-demo
+          bb scope check ci-demo.example
+          if bb scope check not-in-scope.invalid; then
+            echo "expected DENY for OOS host" >&2
+            exit 1
+          fi
+
+      - name: bb full --help / passive flags parse
+        run: |
+          set -euo pipefail
+          bb full --help | grep -q "passive-only"
+          # dry: only ensure option parsing fails cleanly without target
+          if bb full --passive-only 2>/dev/null; then
+            echo "expected target required" >&2
+            exit 1
+          fi
+
+      - name: report script syntax
+        run: bash -n recon/report && bash -n recon/full && bash -n recon/scope

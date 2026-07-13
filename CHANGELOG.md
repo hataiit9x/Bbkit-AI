@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- Sparse vendor: drop `site/`, `demo/`, `logo.png`, `tests/`, `wordlists/` from `ref/claude-bug-bounty`
+- `scripts/sparse-vendor-sync.sh` to refresh vendor without bloat
+- HTML + Markdown report with **scope metadata**, alive sample, nuclei stubs, engagement findings
+- `bb full --passive-only` / `--no-ports` / `--no-nuclei` / `--severity` / `--rate`
+- Port scan respects `BB_RATE`
+- CI: real shellcheck (no `|| true`) + smoke job for `bb scope` and full flags
+
 ## 0.2.0
 
 - Add `bb scope` (new / use / check / list / clear / status) and engagement templates

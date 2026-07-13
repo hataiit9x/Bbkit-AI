@@ -12,7 +12,8 @@ mkdir -p "$out"
 [[ -f "$subs" ]] || "$BB_ROOT/recon/subs" "$target"
 
 if need_cmd naabu; then
-  naabu -list "$subs" -top-ports 1000 -rate 1000 -o "$out/naabu.txt" || true
+  rate="${BB_RATE:-1000}"
+  naabu -list "$subs" -top-ports 1000 -rate "$rate" -o "$out/naabu.txt" || true
 fi
 
 if need_cmd nmap && [[ -s "$out/naabu.txt" ]]; then
