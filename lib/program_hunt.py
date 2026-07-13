@@ -24,6 +24,43 @@ URL_RE = re.compile(r"https?://[^\s'\"<>()]+", re.IGNORECASE)
 DOMAIN_RE = re.compile(r"(?<![\w.-])(?:\*\.)?(?:[a-zA-Z][a-zA-Z0-9-]*\.)+[a-zA-Z]{2,}(?![\w.-])")
 ADDRESS_RE = re.compile(r"\b0x[a-fA-F0-9]{40}\b")
 REPO_RE = re.compile(r"\b([a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+)\b")
+# Program platform hosts (not in-scope customer assets)
+PLATFORM_HOST_MARKERS: list[tuple[str, str]] = [
+    # host substring → display name (first match wins; more specific first)
+    ("hackerone.com", "HackerOne"),
+    ("bugcrowd.com", "Bugcrowd"),
+    ("intigriti.com", "Intigriti"),
+    ("hackenproof.com", "HackenProof"),
+    ("yeswehack.com", "YesWeHack"),
+    ("immunefi.com", "Immunefi"),
+    ("cantina.xyz", "Cantina"),
+    ("code4rena.com", "Code4rena"),
+    ("sherlock.xyz", "Sherlock"),
+    ("codehawks.com", "CodeHawks"),
+    ("hats.finance", "Hats Finance"),
+    ("spearbit.com", "Spearbit"),
+    ("synack.com", "Synack"),
+    ("cobalt.io", "Cobalt"),
+    ("yogosha.com", "Yogosha"),
+    ("federacy.com", "Federacy"),
+    ("bugbase.ai", "BugBase"),
+    ("bugrap.io", "BugRap"),
+    ("hacken.io", "Hacken"),
+    ("hackenproof", "HackenProof"),
+    ("safehats.com", "SafeHats"),
+    ("hacktrophy.com", "HackTrophy"),
+    ("bugbounty.jp", "Bugbounty.jp"),
+    ("detectify.com", "Detectify"),
+    ("integrity.pt", "Integrity"),
+    ("hackerspace.gov.il", "Hackerspace"),
+    ("security.googlebugbounty", "Google VRP"),
+    ("bughunters.google.com", "Google VRP"),
+    ("msrc.microsoft.com", "Microsoft MSRC"),
+    ("bugbounty.microsoft.com", "Microsoft MSRC"),
+    ("facebook.com/whitehat", "Meta"),
+    ("bugbounty.apple.com", "Apple"),
+]
+
 IGNORE_HOSTS = {
     "github.com",
     "gitlab.com",
@@ -39,15 +76,27 @@ IGNORE_HOSTS = {
     "mirror.xyz",
     "notion.so",
     "www.notion.so",
-    "bugcrowd.com",
-    "bugrap.io",
-    "hackerone.com",
-    "intigriti.com",
-    "immunefi.com",
     "nvd.nist.gov",
     "youtube.com",
-    "www.bugrap.io",
     "www.youtube.com",
+    # platforms (not customer assets)
+    "hackerone.com",
+    "bugcrowd.com",
+    "intigriti.com",
+    "hackenproof.com",
+    "yeswehack.com",
+    "immunefi.com",
+    "cantina.xyz",
+    "code4rena.com",
+    "sherlock.xyz",
+    "codehawks.com",
+    "synack.com",
+    "cobalt.io",
+    "yogosha.com",
+    "bugrap.io",
+    "www.bugrap.io",
+    "bughunters.google.com",
+    "msrc.microsoft.com",
 }
 EXPLORER_HOST_HINTS = (
     "etherscan",
@@ -307,6 +356,8 @@ def classify_program(page_data: dict[str, Any], program_url: str = "") -> list[s
             "cantina",
             "code4rena",
             "sherlock",
+            "codehawks",
+            "hats finance",
             "foundry",
             "hardhat",
             "anchor",
@@ -567,22 +618,35 @@ def build_command_plan(program_url: str, targets: list[ScanTarget], labels: list
 
 
 def detect_platform(program_url: str, page_data: dict[str, Any]) -> str:
+    """Identify bounty/contest platform from URL host (preferred) or page text."""
     host = (urlparse(program_url).hostname or "").lower()
+    path = (urlparse(program_url).path or "").lower()
+    hay_url = f"{host}{path}"
     text = (page_data.get("title", "") + " " + page_data.get("text", "")).lower()
-    if "cantina.xyz" in host or "cantina" in text:
-        return "Cantina"
-    if "immunefi.com" in host:
-        return "Immunefi"
-    if "hackerone.com" in host:
-        return "HackerOne"
-    if "bugcrowd.com" in host:
-        return "Bugcrowd"
-    if "code4rena.com" in host or "code4rena" in text:
-        return "Code4rena"
-    if "sherlock.xyz" in host:
-        return "Sherlock"
-    if "intigriti.com" in host:
-        return "Intigriti"
+
+    for marker, name in PLATFORM_HOST_MARKERS:
+        if marker in hay_url:
+            return name
+
+    # Text fallbacks (local HTML export, redirect pages)
+    text_markers = (
+        ("hackenproof", "HackenProof"),
+        ("intigriti", "Intigriti"),
+        ("hackerone", "HackerOne"),
+        ("bugcrowd", "Bugcrowd"),
+        ("yeswehack", "YesWeHack"),
+        ("immunefi", "Immunefi"),
+        ("cantina", "Cantina"),
+        ("code4rena", "Code4rena"),
+        ("sherlock", "Sherlock"),
+        ("codehawks", "CodeHawks"),
+        ("synack", "Synack"),
+        ("cobalt.io", "Cobalt"),
+        ("yogosha", "Yogosha"),
+    )
+    for marker, name in text_markers:
+        if marker in text:
+            return name
     return "unknown"
 
 
@@ -701,7 +765,7 @@ Mark with [x] after human/AI confirms.
 - [ ] Out-of-scope list filled
 - [ ] Reward / severity rules understood
 
-## B. If **web3** (Cantina / Immunefi / SC)
+## B. If **web3** (contest / Immunefi / Cantina / SC platforms)
 
 - [ ] Repo commit/tag pinned
 - [ ] Deployed addresses + chains listed
@@ -756,7 +820,7 @@ export BB_REQUIRE_SCOPE=1
 {chr(10).join(commands)}
 ```
 
-## 3. AI analysis (Grok Build / Claude)
+## 3. AI analysis (any agent: Codex / Claude / Factory / Grok / Z.ai / …)
 
 Read only:
 1. `engagements/{slug}/scope.md`
@@ -1059,13 +1123,14 @@ Engagement (CLI-first — đọc TRƯỚC, đừng re-fetch program page):
 - `findings/_TEMPLATE.md` + `poc/` — ghi finding + PoC
 - `triager-review.md` — pass cuối góc triager/reviewer
 """
-    return f"""Authorized bug bounty engagement (BBKit / Grok Build)
+    return f"""Authorized bug bounty engagement (BBKit — agent-agnostic)
 
 Context
 - Intake workspace: {workspace_dir}
 - Program URL: {program_url}
 - Surface labels: {label_text}
 - Engagement slug: {slug or "(none)"}
+- Works with any shell-capable agent (Codex, Claude Code, Factory Droid, Grok Build, Z.ai/ZCode, Cursor, OpenCode, …)
 {eng_block}
 Hard rules:
 - In-scope only; no destructive / noisy OOS actions.

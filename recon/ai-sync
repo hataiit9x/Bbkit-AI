@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Sync AI skills/commands into Claude Code, Codex, .agents, Factory Droid.
+# Sync AI skills/commands into common agent homes (agent-agnostic).
+# Default: Claude Code, Codex, shared .agents, Factory Droid.
+# Extra: BB_EXTRA_SKILL_ROOTS (colon-separated) for Z.ai, Cursor, OpenCode, etc.
 # Also ensures web3 skill pack and bbkit orchestrator are available.
 set -euo pipefail
 source "$BB_ROOT/lib/common.sh"
@@ -8,6 +10,9 @@ claude_root="${BB_CLAUDE_ROOT:-$HOME/.claude}"
 codex_root="${BB_CODEX_ROOT:-$HOME/.codex}"
 agents_root="${BB_AGENTS_ROOT:-$HOME/.agents}"
 factory_root="${BB_FACTORY_ROOT:-$HOME/.factory}"
+# Optional extra skill parents, e.g.:
+#   export BB_EXTRA_SKILL_ROOTS="$HOME/.cursor/skills:$HOME/.zai/skills:$HOME/.opencode/skills"
+extra_skill_roots="${BB_EXTRA_SKILL_ROOTS:-}"
 
 WEB3_URL="${BB_WEB3_URL:-https://github.com/shuvonsec/web3-bug-bounty-hunting-ai-skills.git}"
 # Prefer installed web3, then source-tree ref, then clone into BB_WEB3_ROOT
@@ -116,7 +121,20 @@ for try in \
   fi
 done
 if [[ -n "$bbkit_src" ]]; then
-  for dest in "$claude_root/skills/bbkit" "$codex_root/skills/bbkit" "$agents_root/skills/bbkit" "$factory_root/skills/bbkit"; do
+  bbkit_dests=(
+    "$claude_root/skills/bbkit"
+    "$codex_root/skills/bbkit"
+    "$agents_root/skills/bbkit"
+    "$factory_root/skills/bbkit"
+  )
+  if [[ -n "$extra_skill_roots" ]]; then
+    IFS=':' read -r -a _extra <<< "$extra_skill_roots"
+    for root in "${_extra[@]}"; do
+      [[ -n "$root" ]] || continue
+      bbkit_dests+=("${root%/}/bbkit")
+    done
+  fi
+  for dest in "${bbkit_dests[@]}"; do
     rm -rf "$dest"
     mkdir -p "$dest"
     cp -R "$bbkit_src"/. "$dest/"
@@ -147,10 +165,17 @@ if [[ -d "$BB_REF/strix-skills" ]]; then
 fi
 
 echo ""
-echo "Claude Code:   $claude_root"
-echo "Codex:         $codex_root"
-echo ".agents:       $agents_root"
-echo "Factory Droid: $factory_root"
-echo "AI bundle:     $BB_AI_ROOT"
-echo "Web3:          $web3_root"
-echo "bbkit skill:   ${bbkit_src:-missing}"
+echo "Claude Code:     $claude_root"
+echo "Codex:           $codex_root"
+echo ".agents (shared):$agents_root"
+echo "Factory Droid:   $factory_root"
+if [[ -n "$extra_skill_roots" ]]; then
+  echo "Extra skill roots: $extra_skill_roots"
+else
+  echo "Extra skill roots: (set BB_EXTRA_SKILL_ROOTS for Z.ai/Cursor/OpenCode/…)"
+fi
+echo "AI bundle:       $BB_AI_ROOT"
+echo "Web3:            $web3_root"
+echo "bbkit skill:     ${bbkit_src:-missing}"
+echo ""
+echo "Any agent with shell can use: bb engage <program-url>  (skill path optional if CLI is on PATH)"

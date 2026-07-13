@@ -46,28 +46,29 @@ docker run --rm -p 8787:8787 -v "$PWD/out:/data/BugBounty/output" \
 # see docs/DOCKER.md
 ```
 
-### CLI-first program intake (Cantina / Immunefi / H1)
+### CLI-first program intake (any platform, any agent)
 
-Preferred for **Grok Build** and agents — create engagement folder + checklist, then run host tools:
+Same flow for **Intigriti, HackenProof, HackerOne, Bugcrowd, YesWeHack, Immunefi, Cantina, Code4rena, …** and any private policy URL. Drive it from **Codex, Claude Code, Factory Droid, Grok Build, Z.ai/ZCode, Cursor, …** — only requirement is shell + `bb` on PATH.
 
 ```bash
-bb engage 'https://cantina.xyz/code/<uuid>/overview' --slug rogo-recon
-# → engagements/rogo-recon/{scope,checklist,pipeline,triager-review}.md
+bb engage 'https://app.intigriti.com/…/…' --slug acme-intigriti
+# or: bb engage 'https://hackenproof.com/…' --slug acme-hp
+# → engagements/<slug>/{scope,checklist,pipeline,triager-review}.md
 # → findings/_TEMPLATE.md, poc/ ; scope activated
-# → output/programs/rogo-recon-<ts>/ (raw page + handoff)
+# → output/programs/<slug>-<ts>/ (raw page + handoff)
 
-# AI reads checklist (web3 vs web/api vs mobile), runs e.g.:
+# Agent reads checklist (web3 vs web/api vs mobile), runs host tools:
 bb alive <in-scope-host>
 bb urls <in-scope-host>
-# Web3: forge/slither on pinned repo; skip noisy web scan if pure SC
+# Web3 contests: forge/slither; skip noisy web scan if pure SC
 
 # Finding + PoC + triager
-cp ~/BugBounty/engagements/rogo-recon/findings/_TEMPLATE.md \
-   ~/BugBounty/engagements/rogo-recon/findings/001-title.md
-# fill triager-review.md before submit
+cp ~/BugBounty/engagements/<slug>/findings/_TEMPLATE.md \
+   ~/BugBounty/engagements/<slug>/findings/001-title.md
 ```
 
 `bb engage` defaults to **intake only** (no auto nuclei). Pass `--scan` or use `bb bounty` for first-pass probes.
+
 
 ### Authorized recon flow
 
@@ -90,24 +91,31 @@ export BB_REQUIRE_SCOPE=1        # refuse recon if no active scope / OOS host
 bb full acme.com
 ```
 
-### AI (Grok Build / Claude Code / Cursor)
+### AI (multi-agent)
 
 ```bash
-bb ai sync                       # skills + commands + web3 + bbkit
+bb ai sync                       # Claude / Codex / .agents / Factory (+ BB_EXTRA_SKILL_ROOTS)
 bb ai doctor
 bb hunt …                        # when AI bundle tools present
 bb validate …
 ```
 
-Prompt starter:
-
-```text
-Use bbkit skill. Authorized only.
-bb engage 'https://cantina.xyz/code/<id>/overview' --slug <name>
-Follow checklist.md + pipeline.md (CLI tools first). Findings + PoC; triager-review last.
+```bash
+# Optional: Z.ai, Cursor, OpenCode skill dirs
+export BB_EXTRA_SKILL_ROOTS="$HOME/.cursor/skills:$HOME/.zai/skills"
+bb ai sync
 ```
 
-Optional UI: `bb dashboard` — not required for the CLI hunt path.
+Prompt starter (any agent):
+
+```text
+Use bbkit skill if present. Authorized only.
+bb engage '<PROGRAM_POLICY_URL>' --slug <name>
+Follow checklist.md + pipeline.md (CLI first). Findings + PoC; triager-review last.
+```
+
+Optional UI: `bb dashboard` — not required for the CLI path.
+
 
 ### CloakBrowser
 

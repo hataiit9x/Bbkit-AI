@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CLI-first program intake for Grok Build / agents.
+# CLI-first program intake for any agent + any bounty platform.
 # Creates engagements/<slug>/ (scope, checklist, pipeline, findings, triager)
 # and activates scope. Default: no noisy auto scan (save tokens).
 set -euo pipefail
@@ -10,10 +10,14 @@ usage() {
 Usage:
   bb engage <program-url> [options]
 
-Create engagement workspace from a bounty program page (Cantina, Immunefi, H1, …).
+Create engagement workspace from any bounty program policy URL
+(HackerOne, Bugcrowd, Intigriti, HackenProof, YesWeHack, Immunefi, Cantina, …).
+
+Agent-agnostic: same command for Codex, Claude Code, Factory Droid, Grok Build,
+Z.ai/ZCode, Cursor, OpenCode, or plain shell.
 
 Options:
-  --slug NAME              Engagement folder under engagements/ (e.g. rogo-recon)
+  --slug NAME              Engagement folder under engagements/ (e.g. acme-intigriti)
   --browser auto|off|standard   Page fetch / CloakBrowser (default: auto)
   --timeout N              HTTP / browser timeout seconds
   --scan                   Also run scoped web probes (alive/urls/nuclei when applicable)
@@ -23,13 +27,14 @@ Options:
 Default behavior: --intake-only (scope + checklist + activate; no auto nuclei).
 
 Examples:
-  bb engage 'https://cantina.xyz/code/.../overview'
-  bb engage 'https://cantina.xyz/code/.../overview' --slug rogo-recon
+  bb engage 'https://app.intigriti.com/…' --slug acme-intigriti
+  bb engage 'https://hackenproof.com/…' --slug acme-hp
+  bb engage 'https://hackerone.com/…' --slug acme-h1
   bb engage 'https://immunefi.com/bug-bounty/foo/' --scan
 
-Next steps (for AI / operator):
+Next steps (any AI agent / operator):
   1. Read engagements/<slug>/scope.md + checklist.md + pipeline.md
-  2. Run CLI tools listed in pipeline.md (bb alive / urls / … or Foundry)
+  2. Run CLI tools in pipeline.md (bb alive / urls / … or Foundry)
   3. Write findings under engagements/<slug>/findings/ + poc/
   4. Fill triager-review.md before submit
 EOF
