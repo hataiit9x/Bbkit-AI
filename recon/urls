@@ -11,10 +11,17 @@ mkdir -p "$out"
 
 [[ -f "$alive" ]] || "$BB_ROOT/recon/alive" "$target"
 
-if need_cmd gau; then gau --threads 50 "$target" > "$out/gau.txt" || true; fi
+if need_cmd gau; then gau --threads "${BB_GAU_THREADS:-50}" "$target" > "$out/gau.txt" || true; fi
 if need_cmd waybackurls; then cat "$alive" | waybackurls > "$out/waybackurls.txt" || true; fi
-if need_cmd katana; then katana -list "$alive" -silent -d 3 -jc -kf all -o "$out/katana.txt" || true; fi
-if need_cmd gospider; then gospider -S "$alive" -t 10 -d 2 --js --sitemap --robots -o "$out/gospider_raw" >/dev/null 2>&1 || true; find "$out/gospider_raw" -type f -name "*.txt" -exec cat {} \; > "$out/gospider.txt" 2>/dev/null || true; fi
+if need_cmd katana; then
+  katana -list "$alive" -silent -d "${BB_KATANA_DEPTH:-3}" -jc -kf all \
+    -c "${BB_THREADS:-50}" -o "$out/katana.txt" || true
+fi
+if need_cmd gospider; then
+  gospider -S "$alive" -t "${BB_THREADS:-10}" -d 2 --js --sitemap --robots \
+    -o "$out/gospider_raw" >/dev/null 2>&1 || true
+  find "$out/gospider_raw" -type f -name "*.txt" -exec cat {} \; > "$out/gospider.txt" 2>/dev/null || true
+fi
 
 cat "$out"/*.txt 2>/dev/null | grep -E '^https?://' | sort -u > "$out/all_urls.txt" || true
 grep '=' "$out/all_urls.txt" | sort -u > "$out/params.txt" || true

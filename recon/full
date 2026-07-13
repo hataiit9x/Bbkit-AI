@@ -14,22 +14,36 @@ Options:
   --passive-only     Skip port scan and nuclei (subs → alive → urls → js → report)
   --no-ports         Skip naabu/port stage
   --no-nuclei        Skip nuclei stage
-  --severity LIST    Nuclei severities (default: env BB_NUCLEI_SEVERITY or critical,high,medium)
-  --rate N           Soft rate hint for tools (export BB_RATE)
+  --severity LIST    Nuclei severities (default from config/env)
+  --rate N           Rate limit (BB_RATE / config rate_limit)
+  --threads N        Thread hint (BB_THREADS / config threads)
   -h, --help         This help
+
+Config: \$BB_ROOT/config/config.yaml (see docs/CONFIG.md)
 
 Examples:
   bb full example.com
   bb full --passive-only example.com
-  bb full --no-ports --severity critical,high example.com
+  bb full --no-ports --severity critical,high --rate 100 example.com
 EOF
 }
 
+# Defaults from config (already loaded via common.sh); CLI overrides.
 passive_only=0
 do_ports=1
 do_nuclei=1
 severity="${BB_NUCLEI_SEVERITY:-critical,high,medium}"
 rate="${BB_RATE:-}"
+threads="${BB_THREADS:-}"
+
+# Optional config.yaml recon defaults when BB_FULL_FROM_CONFIG=1 (set by load)
+if [[ "${BB_RECON_PASSIVE_ONLY:-0}" == "1" ]]; then
+  passive_only=1
+  do_ports=0
+  do_nuclei=0
+fi
+if [[ "${BB_RECON_PORTS:-1}" == "0" ]]; then do_ports=0; fi
+if [[ "${BB_RECON_NUCLEI:-1}" == "0" ]]; then do_nuclei=0; fi
 
 target=""
 while [[ $# -gt 0 ]]; do
@@ -60,6 +74,11 @@ while [[ $# -gt 0 ]]; do
     --rate)
       rate="${2:-}"
       [[ -n "$rate" ]] || { err "--rate needs a value"; exit 1; }
+      shift 2
+      ;;
+    --threads)
+      threads="${2:-}"
+      [[ -n "$threads" ]] || { err "--threads needs a value"; exit 1; }
       shift 2
       ;;
     --)
@@ -101,7 +120,11 @@ require_in_scope "$target"
 export BB_NUCLEI_SEVERITY="$severity"
 if [[ -n "$rate" ]]; then
   export BB_RATE="$rate"
-  log "Rate hint BB_RATE=$rate"
+  log "BB_RATE=$rate"
+fi
+if [[ -n "$threads" ]]; then
+  export BB_THREADS="$threads"
+  log "BB_THREADS=$threads"
 fi
 
 if [[ "$passive_only" -eq 1 ]]; then

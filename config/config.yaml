@@ -1,13 +1,40 @@
-threads: 100
-rate_limit: 50
-output: ~/BugBounty/output
+# BBKit runtime config
+# Copy to $BB_ROOT/config/config.yaml (install does this).
+# Override any key with env: BB_THREADS, BB_RATE, BB_NUCLEI_SEVERITY, BB_REQUIRE_SCOPE, …
+
+# Paths (optional). Omit to use $BB_ROOT/output and $BB_ROOT/wordlists.
+# Supports ~ and $BB_ROOT expansion.
+# output: $BB_ROOT/output
+# wordlists: $BB_ROOT/wordlists
+
+# Performance
+threads: 50
+rate_limit: 200
+
+# Safety
+require_scope: false          # true => BB_REQUIRE_SCOPE=1
+
+# Recon stages
+recon:
+  passive_only: false
+  ports: true
+  nuclei: true
+  katana_depth: 3
+  naabu_top_ports: 1000
+  httpx_threads: 50
+  gau_threads: 50
 
 nuclei:
   severity:
     - critical
     - high
     - medium
-    - low
+  # templates: ""             # optional custom path
 
 resolvers:
-  file: ~/BugBounty/wordlists/resolvers/resolvers.txt
+  # file: $BB_ROOT/wordlists/resolvers/resolvers.txt
+  file: ""
+
+dashboard:
+  host: 127.0.0.1
+  port: 8787

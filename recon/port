@@ -13,7 +13,8 @@ mkdir -p "$out"
 
 if need_cmd naabu; then
   rate="${BB_RATE:-1000}"
-  naabu -list "$subs" -top-ports 1000 -rate "$rate" -o "$out/naabu.txt" || true
+  top="${BB_NAABU_TOP_PORTS:-1000}"
+  naabu -list "$subs" -top-ports "$top" -rate "$rate" -o "$out/naabu.txt" || true
 fi
 
 if need_cmd nmap && [[ -s "$out/naabu.txt" ]]; then

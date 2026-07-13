@@ -17,40 +17,34 @@ BBKit commands:
   bb update
   bb version
   bb scope …                 # authorized engagement scope
+  bb config                  # effective config (yaml + env)
+  bb dashboard [--host] [--port]
   bb bounty <program-url>
   bb browser <url>
-  bb ai help
-  bb ai sync
-  bb ai doctor
-  bb ai run <tool> [args...]
-  bb hunt [args...]
-  bb validate [args...]
-  bb intel [args...]
-  bb scan-cves [args...]
-  bb arsenal [tool]
+  bb ai help | sync | doctor | run …
 
 Recon (scope-checked when active):
-  bb subs <domain>
-  bb alive <domain>
-  bb urls <domain>
-  bb js <domain>
-  bb port <domain>
-  bb nuclei <domain>
-  bb report <domain>
+  bb subs|alive|urls|js|port|nuclei|report <domain>
   bb full [options] <domain>
       --passive-only | --no-ports | --no-nuclei
-      --severity critical,high | --rate N
+      --severity LIST | --rate N | --threads N
 
 Paths:
   $BB_ROOT/output/<domain>/
   $BB_ROOT/engagements/
-  $BB_ROOT/ai/bug-bounty/
-  $BB_ROOT/ai/web3-skills/
+  $BB_ROOT/config/config.yaml
+  $BB_ROOT/ai/bug-bounty/ | web3-skills/
   $BB_ROOT/skills/bbkit/
 EOF
     ;;
   scope)
     "$BB_ROOT/recon/scope" "$@"
+    ;;
+  config|config-show)
+    "$BB_ROOT/recon/config-show" "$@"
+    ;;
+  dashboard)
+    "$BB_ROOT/recon/dashboard" "$@"
     ;;
   bounty)
     "$BB_ROOT/recon/bounty" "$@"
@@ -101,6 +95,10 @@ EOF
     ;;
   subs|alive|urls|js|port|nuclei|report|full)
     "$BB_ROOT/recon/$cmd" "$@"
+    ;;
+  # allow recon/config-show via full name if invoked oddly
+  config-show)
+    "$BB_ROOT/recon/config-show" "$@"
     ;;
   *)
     err "Unknown command: $cmd"

@@ -19,10 +19,15 @@
 - `bb full --passive-only` / rate / severity flags
 - Smoke tests in CI + stricter shellcheck
 
-## v0.4 (next)
-- Wire more knobs from `config/config.yaml`
+## v0.4 (current)
+- Config.yaml fully wired to recon tools
 - Optional dashboard
-- Docker image for VPS
+- Docker image + compose for VPS
+
+## v0.5 (next)
+- Richer program_hunt UX
+- Optional distributed scan notes
+- More plugin coverage in Docker image
 
 ## v1.0
 - Stable public release

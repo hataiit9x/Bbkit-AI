@@ -49,4 +49,13 @@ jobs:
           fi
 
       - name: report script syntax
-        run: bash -n recon/report && bash -n recon/full && bash -n recon/scope
+        run: bash -n recon/report && bash -n recon/full && bash -n recon/scope && bash -n lib/common.sh
+
+      - name: config-show + dashboard import
+        run: |
+          set -euo pipefail
+          mkdir -p "$BB_ROOT/config"
+          cp config/config.yaml "$BB_ROOT/config/config.yaml"
+          bb config >"$BB_ROOT/cfg.out"
+          grep -q BB_THREADS "$BB_ROOT/cfg.out"
+          python3 -m py_compile lib/dashboard.py

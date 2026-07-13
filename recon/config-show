@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Print effective BBKit config (file + env overrides).
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+
+echo "BBKit effective config"
+echo "======================"
+echo "BB_ROOT            = $BB_ROOT"
+echo "BB_CONFIG          = ${BB_CONFIG:-}"
+echo "config file exists = $([[ -f ${BB_CONFIG:-} ]] && echo yes || echo no)"
+echo "BB_OUTPUT          = $BB_OUTPUT"
+echo "BB_WORDLISTS       = $BB_WORDLISTS"
+echo "BB_THREADS         = $BB_THREADS"
+echo "BB_RATE            = $BB_RATE"
+echo "BB_NUCLEI_SEVERITY = $BB_NUCLEI_SEVERITY"
+echo "BB_REQUIRE_SCOPE   = $BB_REQUIRE_SCOPE"
+echo "BB_KATANA_DEPTH    = $BB_KATANA_DEPTH"
+echo "BB_NAABU_TOP_PORTS = $BB_NAABU_TOP_PORTS"
+echo "BB_HTTPX_THREADS   = $BB_HTTPX_THREADS"
+echo "BB_GAU_THREADS     = $BB_GAU_THREADS"
+echo "BB_RESOLVERS_FILE  = $BB_RESOLVERS_FILE"
+echo "BB_DASH_HOST       = $BB_DASH_HOST"
+echo "BB_DASH_PORT       = $BB_DASH_PORT"
+echo "BB_RECON_PASSIVE   = ${BB_RECON_PASSIVE_ONLY:-0}"
+echo "BB_RECON_PORTS     = ${BB_RECON_PORTS:-1}"
+echo "BB_RECON_NUCLEI    = ${BB_RECON_NUCLEI:-1}"
+if sf="$(active_scope_file 2>/dev/null)"; then
+  echo "active scope       = $sf"
+else
+  echo "active scope       = (none)"
+fi

@@ -9,7 +9,12 @@ mkdir -p "$out"
 
 log "Subdomain recon: $target"
 
-if need_cmd subfinder; then subfinder -d "$target" -all -recursive -silent -o "$out/subfinder.txt" || true; fi
+if need_cmd subfinder; then
+  sf_args=(-d "$target" -all -recursive -silent -o "$out/subfinder.txt")
+  if [[ -n "${BB_THREADS:-}" ]]; then sf_args+=(-t "$BB_THREADS"); fi
+  if [[ -f "${BB_RESOLVERS_FILE:-}" ]]; then sf_args+=(-r "$BB_RESOLVERS_FILE"); fi
+  subfinder "${sf_args[@]}" || true
+fi
 if need_cmd assetfinder; then echo "$target" | assetfinder -subs-only | tee "$out/assetfinder.txt" >/dev/null || true; fi
 if need_cmd chaos; then chaos -d "$target" -silent -o "$out/chaos.txt" || true; fi
 if need_cmd amass; then amass enum -passive -d "$target" -o "$out/amass.txt" || true; fi
@@ -17,7 +22,10 @@ if need_cmd amass; then amass enum -passive -d "$target" -o "$out/amass.txt" || 
 cat "$out"/*.txt 2>/dev/null | sed 's/^\*\.//' | sort -u > "$out/all.txt" || true
 
 if need_cmd dnsx; then
-  dnsx -l "$out/all.txt" -silent -o "$out/resolved.txt" || true
+  dx_args=(-l "$out/all.txt" -silent -o "$out/resolved.txt")
+  if [[ -f "${BB_RESOLVERS_FILE:-}" ]]; then dx_args+=(-r "$BB_RESOLVERS_FILE"); fi
+  if [[ -n "${BB_THREADS:-}" ]]; then dx_args+=(-t "$BB_THREADS"); fi
+  dnsx "${dx_args[@]}" || true
 else
   cp "$out/all.txt" "$out/resolved.txt"
 fi

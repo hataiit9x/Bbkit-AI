@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Wire `config/config.yaml` → runtime (`load_bb_config`): threads, rate, nuclei severity, scope, katana depth, naabu ports, dashboard host/port, resolvers
+- Recon tools honor config/env knobs (subfinder, dnsx, httpx, katana, naabu, nuclei, gau)
+- `bb config` shows effective values
+- Optional **dashboard** (`bb dashboard`, `lib/dashboard.py`) — reports + engagements + JSON API
+- **Docker** + `docker-compose.yml` for VPS (core tools + dashboard)
+- `bb full --threads N`; docs CONFIG / DOCKER / DASHBOARD
+
 ## 0.3.0
 
 - Sparse vendor: drop `site/`, `demo/`, `logo.png`, `tests/`, `wordlists/` from `ref/claude-bug-bounty`

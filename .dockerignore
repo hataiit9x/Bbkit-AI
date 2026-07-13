@@ -1,0 +1,10 @@
+.git
+output
+logs
+**/__pycache__
+*.pyc
+ref/claude-bug-bounty/site
+ref/claude-bug-bounty/demo
+ref/claude-bug-bounty/logo.png
+*.md
+!README.md

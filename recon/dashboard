@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Start optional recon dashboard (stdlib Python).
+set -euo pipefail
+source "$BB_ROOT/lib/common.sh"
+
+host="${BB_DASH_HOST:-127.0.0.1}"
+port="${BB_DASH_PORT:-8787}"
+
+# Allow: bb dashboard --host 0.0.0.0 --port 9000
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --host) host="${2:-}"; shift 2 ;;
+    --port) port="${2:-}"; shift 2 ;;
+    -h|--help)
+      echo "Usage: bb dashboard [--host 127.0.0.1] [--port 8787]"
+      exit 0
+      ;;
+    *) err "Unknown: $1"; exit 1 ;;
+  esac
+done
+
+export BB_DASH_HOST="$host"
+export BB_DASH_PORT="$port"
+export BB_ROOT BB_OUTPUT BB_ENGAGEMENTS
+
+dash_py="$BB_ROOT/lib/dashboard.py"
+if [[ ! -f "$dash_py" ]]; then
+  # dev checkout
+  src="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/dashboard.py"
+  [[ -f "$src" ]] && dash_py="$src"
+fi
+[[ -f "$dash_py" ]] || { err "dashboard.py not found"; exit 1; }
+
+log "Starting dashboard on http://${host}:${port}/"
+exec python3 "$dash_py"

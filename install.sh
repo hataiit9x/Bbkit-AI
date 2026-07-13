@@ -68,6 +68,12 @@ if [[ -d "$BBKIT_SRC/scripts" ]]; then
   chmod +x "$BB_ROOT"/scripts/*.sh 2>/dev/null || true
 fi
 cp "$BBKIT_SRC/bin/bb" "$BB_BIN/bb"
+# ensure config present
+mkdir -p "$BB_ROOT/config"
+if [[ -f "$BBKIT_SRC/config/config.yaml" ]]; then
+  cp -n "$BBKIT_SRC/config/config.yaml" "$BB_ROOT/config/config.yaml" 2>/dev/null \
+    || cp "$BBKIT_SRC/config/config.yaml" "$BB_ROOT/config/config.yaml"
+fi
 chmod +x "$BB_BIN/bb" "$BB_ROOT"/recon/* || true
 # Drop Python caches if any were copied
 find "$BB_ROOT/lib" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true

@@ -25,3 +25,7 @@ flowchart TD
 - `templates/engagement/` — scope.md templates  
 - `ref/claude-bug-bounty/` — vendored AI methodology (upstream MIT)  
 - Runtime `$BB_ROOT` (`~/BugBounty`) — output, engagements, installed AI  
+- `config/config.yaml` → `load_bb_config`  
+- `lib/dashboard.py` + `bb dashboard`  
+- `Dockerfile` / `docker-compose.yml` for VPS  
+

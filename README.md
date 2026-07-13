@@ -4,7 +4,7 @@
 
 > Use only on assets you own or have **explicit permission** to test.
 
-**Version:** see `VERSION` (current: **0.3.0**)
+**Version:** see `VERSION` (current: **0.4.0**)
 
 ---
 
@@ -31,7 +31,19 @@ chmod +x install.sh bin/bb recon/*
 source ~/.bashrc
 
 bb doctor
+bb config
 bb ai sync
+bb dashboard          # http://127.0.0.1:8787/
+```
+
+### Docker (optional)
+
+```bash
+docker build -t bbkit:0.4 .
+docker run --rm bbkit:0.4 doctor
+docker run --rm -p 8787:8787 -v "$PWD/out:/data/BugBounty/output" \
+  bbkit:0.4 dashboard --host 0.0.0.0
+# see docs/DOCKER.md
 ```
 
 ### Authorized recon flow
@@ -117,8 +129,9 @@ Bbkit-AI/                 # this repo
 
 ## Config
 
-- `config/config.yaml` — threads, rate, nuclei severity defaults  
-- Env: `BB_ROOT`, `BB_REQUIRE_SCOPE=1`, `BB_NUCLEI_SEVERITY=critical,high`, `BB_SCOPE_FILE`, `BB_WEB3_URL`
+- `config/config.yaml` — threads, rate, nuclei severity, recon flags, dashboard (see **docs/CONFIG.md**)  
+- `bb config` — print effective values  
+- Env overrides: `BB_ROOT`, `BB_REQUIRE_SCOPE=1`, `BB_NUCLEI_SEVERITY`, `BB_RATE`, `BB_THREADS`, `BB_SCOPE_FILE`, `BB_WEB3_URL`, `BB_DASH_PORT`
 
 ---
 

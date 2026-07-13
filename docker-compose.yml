@@ -1,0 +1,34 @@
+# Optional VPS / local stack
+#   docker compose run --rm bbkit doctor
+#   docker compose run --rm bbkit full --passive-only example.com
+#   docker compose up dashboard
+
+services:
+  bbkit:
+    build: .
+    image: bbkit:0.4
+    environment:
+      BB_ROOT: /data/BugBounty
+      BB_REQUIRE_SCOPE: ${BB_REQUIRE_SCOPE:-0}
+    volumes:
+      - bbkit-output:/data/BugBounty/output
+      - bbkit-engagements:/data/BugBounty/engagements
+      - ./config/config.yaml:/data/BugBounty/config/config.yaml:ro
+    network_mode: host  # helpful for recon; override if needed
+
+  dashboard:
+    image: bbkit:0.4
+    environment:
+      BB_ROOT: /data/BugBounty
+      BB_DASH_HOST: 0.0.0.0
+      BB_DASH_PORT: "8787"
+    volumes:
+      - bbkit-output:/data/BugBounty/output
+      - bbkit-engagements:/data/BugBounty/engagements
+    ports:
+      - "8787:8787"
+    entrypoint: ["bb", "dashboard", "--host", "0.0.0.0", "--port", "8787"]
+
+volumes:
+  bbkit-output:
+  bbkit-engagements:
